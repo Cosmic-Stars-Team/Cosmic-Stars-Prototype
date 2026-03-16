@@ -1,3 +1,4 @@
+import json
 import math
 
 import rebound
@@ -98,43 +99,121 @@ def _print_mercury_perihelion(sim):
     print(f"  Mercury近日点经度(varpi): {varpi_deg:.6f} deg")
 
 
-def run_simulation(sim, names, years=100, steps=1000):
+def _mercury_perihelion_longitude_deg(sim):
+    try:
+        sun = sim.particles["Sun"]
+        mercury = sim.particles["Mercury"]
+    except Exception:
+        return None
+
+    orbit = mercury.orbit(primary=sun)
+    return (orbit.Omega + orbit.omega) * 180.0 / math.pi
+
+
+def _build_snapshot(sim, names, tick, time_scale_yr_per_real_sec):
+    bodies = []
+    for i, particle in enumerate(sim.particles):
+        name = names[i] if i < len(names) else f"body_{i}"
+        r = math.sqrt(particle.x**2 + particle.y**2 + particle.z**2)
+        v = math.sqrt(particle.vx**2 + particle.vy**2 + particle.vz**2)
+        bodies.append(
+            {
+                "id": i,
+                "name": name,
+                "position_au": [particle.x, particle.y, particle.z],
+                "velocity_au_per_yr": [particle.vx, particle.vy, particle.vz],
+                "distance_from_barycenter_au": r,
+                "speed_au_per_yr": v,
+            }
+        )
+
+    snapshot = {
+        "frame_type": "snapshot",
+        "tick": tick,
+        "sim_time_yr": sim.t,
+        "time_scale_yr_per_real_sec": time_scale_yr_per_real_sec,
+        "reference_frame": "barycentric",
+        "bodies": bodies,
+    }
+
+    varpi = _mercury_perihelion_longitude_deg(sim)
+    if varpi is not None:
+        snapshot["mercury_perihelion_longitude_deg"] = varpi
+
+    return snapshot
+
+
+def run_simulation(
+    sim,
+    names,
+    years=100,
+    steps=1000,
+    snapshot_stride=1,
+    output_path="simulation_stream.jsonl",
+    time_scale_yr_per_real_sec=1.0,
+):
     """
-    运行模拟并输出结果
+    运行模拟并输出前端可消费的NDJSON快照流
 
     参数:
         sim: rebound.Simulation对象
         names: 粒子名称列表
-        years: 模拟的年数
-        steps: 输出步数
+        years: 模拟年数
+        steps: 积分步数
+        snapshot_stride: 每隔多少积分步输出一帧快照
+        output_path: 输出jsonl文件路径
+        time_scale_yr_per_real_sec: 时间倍率（每1秒真实时间推进多少模拟年）
     """
-    print(f"模拟开始：{sim.N} 个天体")
-    print(f"模拟时长：{years} 年")
-    print("-" * 50)
+    if steps <= 0:
+        raise ValueError("steps 必须大于 0")
+    if snapshot_stride <= 0:
+        raise ValueError("snapshot_stride 必须大于 0")
 
-    # 输出初始状态
-    print("初始状态:")
-    for i, particle in enumerate(sim.particles):
-        name = names[i] if i < len(names) else f"粒子{i}"
-        _print_particle_state(name, particle)
-    _print_mercury_perihelion(sim)
+    print(f"模拟开始：{sim.N} 个天体，模拟时长 {years} 年")
+    print(f"输出格式：NDJSON -> {output_path}")
 
     # 进行积分
     dt = years / steps
-    output_interval = max(1, steps // 10)
-    for i in range(steps):
-        sim.integrate(sim.t + dt)
+    written = 0
+    with open(output_path, "w", encoding="utf-8") as f:
+        meta = {
+            "frame_type": "meta",
+            "units": {"distance": "AU", "velocity": "AU/yr", "time": "yr"},
+            "reference_frame": "barycentric",
+            "body_names": names,
+        }
+        f.write(json.dumps(meta, ensure_ascii=False) + "\n")
 
-        # 分段输出状态
-        if (i + 1) % output_interval == 0 or i + 1 == steps:
-            print(f"\n时间: {sim.t:.1f} 年")
-            for j, particle in enumerate(sim.particles):
-                name = names[j] if j < len(names) else f"粒子{j}"
-                _print_particle_state(name, particle)
-            _print_mercury_perihelion(sim)
+        # 初始帧
+        f.write(
+            json.dumps(
+                _build_snapshot(
+                    sim,
+                    names,
+                    tick=0,
+                    time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+        written += 1
 
-    print("\n模拟完成!")
-    return sim
+        for i in range(steps):
+            sim.integrate(sim.t + dt)
+            tick = i + 1
+            if tick % snapshot_stride == 0 or tick == steps:
+                snapshot = _build_snapshot(
+                    sim,
+                    names,
+                    tick=tick,
+                    time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
+                )
+                f.write(json.dumps(snapshot, ensure_ascii=False) + "\n")
+                written += 1
+
+    print(f"模拟完成：共写入 {written} 帧快照")
+    return output_path
 
 
 if __name__ == "__main__":
@@ -142,5 +221,13 @@ if __name__ == "__main__":
     data = load_solar_system()
     sim, names = create_simulation(data)
 
-    # 运行10年的模拟
-    run_simulation(sim, names, years=10, steps=100)
+    # 运行10年的模拟，输出供前端消费的数据流
+    run_simulation(
+        sim,
+        names,
+        years=10,
+        steps=1000,
+        snapshot_stride=10,
+        output_path="simulation_stream.jsonl",
+        time_scale_yr_per_real_sec=1.0,
+    )
