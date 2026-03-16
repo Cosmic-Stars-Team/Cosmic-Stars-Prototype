@@ -1,0 +1,27 @@
+# IDE
+.idea/
+.vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+.venv_msys/
+venv/
+env/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Local/temp artifacts
+.tmp_reboundx/
+*.log
+.DS_Store
+Thumbs.db
