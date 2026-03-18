@@ -1,16 +1,17 @@
 import json
 import math
+from typing import Dict, Iterator, List, Optional
 
 import rebound
-from database import load_solar_system
-
 import reboundx
+
+from database import load_solar_system
 
 # 光速（单位：AU/yr），用于REBOUNDx中的GR项
 C_AU_PER_YR = 63239.7263
 
 
-def enable_mercury_perihelion_precession(sim):
+def enable_mercury_perihelion_precession(sim: rebound.Simulation) -> reboundx.Extras:
     """通过REBOUNDx的广义相对论修正启用水星近日点进动。"""
     rebx = reboundx.Extras(sim)
     gr = rebx.load_force("gr")
@@ -21,7 +22,7 @@ def enable_mercury_perihelion_precession(sim):
     return rebx
 
 
-def create_simulation(data=None, use_reboundx=True):
+def create_simulation(data=None, use_reboundx: bool = True):
     """
     从JSON数据创建rebound模拟
 
@@ -80,26 +81,7 @@ def create_simulation(data=None, use_reboundx=True):
     return sim, names
 
 
-def _print_particle_state(name, particle):
-    r = math.sqrt(particle.x**2 + particle.y**2 + particle.z**2)
-    v = math.sqrt(particle.vx**2 + particle.vy**2 + particle.vz**2)
-    print(
-        f"  {name}: "
-        f"坐标(x,y,z)=({particle.x:.6f}, {particle.y:.6f}, {particle.z:.6f}) AU, "
-        f"速度(vx,vy,vz)=({particle.vx:.6f}, {particle.vy:.6f}, {particle.vz:.6f}) AU/yr, "
-        f"|r|={r:.6f} AU, |v|={v:.6f} AU/yr"
-    )
-
-
-def _print_mercury_perihelion(sim):
-    sun = sim.particles["Sun"]
-    mercury = sim.particles["Mercury"]
-    orbit = mercury.orbit(primary=sun)
-    varpi_deg = (orbit.Omega + orbit.omega) * 180.0 / math.pi
-    print(f"  Mercury近日点经度(varpi): {varpi_deg:.6f} deg")
-
-
-def _mercury_perihelion_longitude_deg(sim):
+def _mercury_perihelion_longitude_deg(sim: rebound.Simulation) -> Optional[float]:
     try:
         sun = sim.particles["Sun"]
         mercury = sim.particles["Mercury"]
@@ -110,22 +92,45 @@ def _mercury_perihelion_longitude_deg(sim):
     return (orbit.Omega + orbit.omega) * 180.0 / math.pi
 
 
-def _build_snapshot(sim, names, tick, time_scale_yr_per_real_sec):
-    bodies = []
-    for i, particle in enumerate(sim.particles):
-        name = names[i] if i < len(names) else f"body_{i}"
-        r = math.sqrt(particle.x**2 + particle.y**2 + particle.z**2)
-        v = math.sqrt(particle.vx**2 + particle.vy**2 + particle.vz**2)
-        bodies.append(
-            {
-                "id": i,
-                "name": name,
-                "position_au": [particle.x, particle.y, particle.z],
-                "velocity_au_per_yr": [particle.vx, particle.vy, particle.vz],
-                "distance_from_barycenter_au": r,
-                "speed_au_per_yr": v,
-            }
+def _build_body_state(particle, body_id: int, name: str) -> Dict:
+    """构建单个天体的状态字典。"""
+    r = math.sqrt(particle.x**2 + particle.y**2 + particle.z**2)
+    v = math.sqrt(particle.vx**2 + particle.vy**2 + particle.vz**2)
+    return {
+        "id": body_id,
+        "name": name,
+        "position_au": [particle.x, particle.y, particle.z],
+        "velocity_au_per_yr": [particle.vx, particle.vy, particle.vz],
+        "distance_from_barycenter_au": r,
+        "speed_au_per_yr": v,
+    }
+
+
+def _build_meta_frame(names: List[str]) -> Dict:
+    """构建输出流首帧元信息。"""
+    return {
+        "frame_type": "meta",
+        "units": {"distance": "AU", "velocity": "AU/yr", "time": "yr"},
+        "reference_frame": "barycentric",
+        "body_names": names,
+    }
+
+
+def _build_snapshot(
+    sim: rebound.Simulation,
+    names: List[str],
+    tick: int,
+    time_scale_yr_per_real_sec: float,
+) -> Dict:
+    """构建前端可消费的一帧快照。"""
+    bodies = [
+        _build_body_state(
+            particle=particle,
+            body_id=i,
+            name=names[i] if i < len(names) else f"body_{i}",
         )
+        for i, particle in enumerate(sim.particles)
+    ]
 
     snapshot = {
         "frame_type": "snapshot",
@@ -141,6 +146,38 @@ def _build_snapshot(sim, names, tick, time_scale_yr_per_real_sec):
         snapshot["mercury_perihelion_longitude_deg"] = varpi
 
     return snapshot
+
+
+def _iter_snapshot_frames(
+    sim: rebound.Simulation,
+    names: List[str],
+    years: float,
+    steps: int,
+    snapshot_stride: int,
+    time_scale_yr_per_real_sec: float,
+) -> Iterator[Dict]:
+    """
+    只负责积分和采样，不负责IO。
+    产出顺序：初始帧 -> 若干采样帧。
+    """
+    dt = years / steps
+    yield _build_snapshot(
+        sim,
+        names,
+        tick=0,
+        time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
+    )
+
+    for i in range(steps):
+        sim.integrate(sim.t + dt)
+        tick = i + 1
+        if tick % snapshot_stride == 0 or tick == steps:
+            yield _build_snapshot(
+                sim,
+                names,
+                tick=tick,
+                time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
+            )
 
 
 def run_simulation(
@@ -172,45 +209,20 @@ def run_simulation(
     print(f"模拟开始：{sim.N} 个天体，模拟时长 {years} 年")
     print(f"输出格式：NDJSON -> {output_path}")
 
-    # 进行积分
-    dt = years / steps
+    meta = _build_meta_frame(names)
     written = 0
     with open(output_path, "w", encoding="utf-8") as f:
-        meta = {
-            "frame_type": "meta",
-            "units": {"distance": "AU", "velocity": "AU/yr", "time": "yr"},
-            "reference_frame": "barycentric",
-            "body_names": names,
-        }
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
-
-        # 初始帧
-        f.write(
-            json.dumps(
-                _build_snapshot(
-                    sim,
-                    names,
-                    tick=0,
-                    time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
-                ),
-                ensure_ascii=False,
-            )
-            + "\n"
-        )
-        written += 1
-
-        for i in range(steps):
-            sim.integrate(sim.t + dt)
-            tick = i + 1
-            if tick % snapshot_stride == 0 or tick == steps:
-                snapshot = _build_snapshot(
-                    sim,
-                    names,
-                    tick=tick,
-                    time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
-                )
-                f.write(json.dumps(snapshot, ensure_ascii=False) + "\n")
-                written += 1
+        for frame in _iter_snapshot_frames(
+            sim=sim,
+            names=names,
+            years=years,
+            steps=steps,
+            snapshot_stride=snapshot_stride,
+            time_scale_yr_per_real_sec=time_scale_yr_per_real_sec,
+        ):
+            f.write(json.dumps(frame, ensure_ascii=False) + "\n")
+            written += 1
 
     print(f"模拟完成：共写入 {written} 帧快照")
     return output_path
