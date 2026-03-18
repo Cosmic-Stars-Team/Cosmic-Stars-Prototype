@@ -23,5 +23,7 @@ dist/
 # Local/temp artifacts
 .tmp_reboundx/
 *.log
+simulation_stream*.jsonl
+integrator_samples*.csv
 .DS_Store
 Thumbs.db
