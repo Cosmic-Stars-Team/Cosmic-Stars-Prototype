@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cosmic-stars-prototype"
+version = "0.1.0"
+description = "Solar system N-body backend prototype based on REBOUND/REBOUNDx."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Cosmic Stars Team" }
+]
+dependencies = [
+  "rebound",
+  "reboundx",
+]
+
+[project.scripts]
+cosmic-sim = "main_simulation:main"
+cosmic-integrator-check = "integrator_check:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+py-modules = ["database", "extra_function", "integrator_check", "main_simulation"]

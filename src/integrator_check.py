@@ -1,7 +1,8 @@
 import argparse
 import csv
 import math
-from typing import Dict, Iterable, List, Tuple
+from pathlib import Path
+from typing import Dict, Iterable, List
 
 from main_simulation import create_simulation
 
@@ -86,8 +87,8 @@ def main() -> None:
     parser.add_argument(
         "--integrator",
         type=str,
-        default="ias15",
-        help="积分器名称，例如 ias15 / whfast",
+        default="mercurius",
+        help="积分器名称，例如 mercurius / ias15 / whfast",
     )
     parser.add_argument(
         "--use-reboundx",
@@ -109,7 +110,7 @@ def main() -> None:
     parser.add_argument(
         "--output-csv",
         type=str,
-        default="integrator_samples.csv",
+        default="data/gen/integrator_samples.csv",
         help="采样输出CSV路径",
     )
     args = parser.parse_args()
@@ -124,7 +125,7 @@ def main() -> None:
 
     # 固定步长积分器（如whfast）需要显式设置dt。
     dt = args.years / args.steps
-    if args.integrator.lower() in {"whfast", "leapfrog", "sei"}:
+    if args.integrator.lower() in {"mercurius", "whfast", "leapfrog", "sei"}:
         sim.dt = dt
 
     sample_bodies = resolve_sample_bodies(names, args.sample_bodies)
@@ -140,7 +141,9 @@ def main() -> None:
     e0 = sim.energy()
     l0 = angular_momentum_norm(sim)
 
-    with open(args.output_csv, "w", newline="", encoding="utf-8") as f:
+    output_csv = Path(args.output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    with output_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[

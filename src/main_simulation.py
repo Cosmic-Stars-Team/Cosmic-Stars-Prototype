@@ -1,6 +1,7 @@
 import json
 import math
-from typing import Dict, Iterator, List, Optional
+from pathlib import Path
+from typing import Dict, Iterator, List, Optional, cast
 
 import rebound
 import reboundx
@@ -41,7 +42,9 @@ def create_simulation(data=None, use_reboundx: bool = True):
 
     # 设置单位系统：年、天文单位、太阳质量
     sim.units = ("yr", "AU", "Msun")
-    sim.integrator = "ias15"
+    sim.integrator = "mercurius"
+    # Mercurius 为固定步长混合积分器，这里给出全局默认步长（1天）
+    sim.dt = 1.0 / 365.25
 
     # 添加太阳
     star = data["star"]
@@ -62,10 +65,11 @@ def create_simulation(data=None, use_reboundx: bool = True):
             m=planet["mass"],
             a=planet["a"],  # 半长轴
             e=planet["e"],  # 离心率
-            inc=planet["inc"],  # 轨道倾角
-            Omega=planet["Omega"],  # 升交点经度
-            omega=planet["omega"],  # 近心点幅角
-            M=planet["M"],  # 平近点角
+            # JSON中的角度字段使用“度”，REBOUND接口使用“弧度”
+            inc=math.radians(planet["inc"]),  # 轨道倾角
+            Omega=math.radians(planet["Omega"]),  # 升交点经度
+            omega=math.radians(planet["omega"]),  # 近心点幅角
+            M=math.radians(planet["M"]),  # 平近点角
             hash=planet["name"],  # 行星名称（作为hash值）
         )
 
@@ -83,8 +87,8 @@ def create_simulation(data=None, use_reboundx: bool = True):
 
 def _mercury_perihelion_longitude_deg(sim: rebound.Simulation) -> Optional[float]:
     try:
-        sun = sim.particles["Sun"]
-        mercury = sim.particles["Mercury"]
+        sun = cast(rebound.Particle, sim.particles["Sun"])
+        mercury = cast(rebound.Particle, sim.particles["Mercury"])
     except Exception:
         return None
 
@@ -186,7 +190,7 @@ def run_simulation(
     years=100,
     steps=1000,
     snapshot_stride=1,
-    output_path="simulation_stream.jsonl",
+    output_path="data/gen/simulation_stream.jsonl",
     time_scale_yr_per_real_sec=1.0,
 ):
     """
@@ -211,7 +215,9 @@ def run_simulation(
 
     meta = _build_meta_frame(names)
     written = 0
-    with open(output_path, "w", encoding="utf-8") as f:
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with output_file.open("w", encoding="utf-8") as f:
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
         for frame in _iter_snapshot_frames(
             sim=sim,
@@ -225,21 +231,25 @@ def run_simulation(
             written += 1
 
     print(f"模拟完成：共写入 {written} 帧快照")
-    return output_path
+    return str(output_file)
 
 
-if __name__ == "__main__":
+def main() -> None:
     # 从JSON文件加载数据并创建模拟
     data = load_solar_system()
     sim, names = create_simulation(data)
 
-    # 运行10年的模拟，输出供前端消费的数据流
+    # 默认运行10年模拟，输出供前端消费的数据流
     run_simulation(
         sim,
         names,
         years=10,
         steps=1000,
         snapshot_stride=10,
-        output_path="simulation_stream.jsonl",
+        output_path="data/gen/simulation_stream.jsonl",
         time_scale_yr_per_real_sec=1.0,
     )
+
+
+if __name__ == "__main__":
+    main()
