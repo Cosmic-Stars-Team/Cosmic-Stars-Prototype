@@ -1,183 +1,133 @@
-# Cosmic Stars
+# Cosmic Stars Prototype
 
-Personal project: Solar system dynamics simulation implemented using the Rebound library, along with its general relativistic corrections.
+Cosmic Stars Prototype is the **Python backend prototype** of the Cosmic Stars project.
 
-## Features
+This stage is focused on **numerical validation**, not final production performance.
+The goals are:
 
-### N-body Simulation
-- High-precision N-body integration using REBOUND
-- Support for IAS15 (adaptive) and WHFast (symplectic) integrators
-- General relativistic corrections via REBOUNDx
-- Flexible time-step control and user-adjustable speed factors (0.1x - 100x)
+- Validate N-body numerical accuracy
+- Validate key physical effects (for example Mercury perihelion precession)
+- Stabilize the backend output contract (position, velocity, simulation time) before Rust migration
 
-### Solar System Database
-- **Complete Solar System Bodies**:
-  - Sun and 8 major planets with accurate orbital elements
-  - Major moons (including Galilean moons)
-  - Dwarf planets (Pluto, Ceres, Eris, etc.)
-- **Accurate Parameters**:
-  - Semi-major axis, eccentricity, inclination
-  - Mass, orbital periods
-  - Verified against JPL horizons data
+## Scope
 
-### Asteroid Belt System
-- **Main Belt Asteroids**: 2.0-4.0 AU with configurable number (up to 20,000+)
-- **Kirkwood Gaps**: Orbital resonance gaps with Jupiter
-- **Hilda Group**: 3:2 resonance asteroids at ~3.97 AU
-- **Trojans**: Jupiter's L4/L5 Trojan swarms
-- **Realistic Distribution**:
-  - Power-law size distribution
-  - Proper orbital elements
-  - Randomized anomalies
+- Language: Python
+- Core libraries: REBOUND + REBOUNDx
+- Integrator policy: **Mercurius only**
+- Input: `data/solar_system.json`
+- Generated outputs: `data/gen/*`
 
-### Simulation Engines
-- **simulation_engine.py**: Advanced engine with Unity time synchronization
-- **sandbox_engine.py**: Optimized for smooth visual experience and real-time interaction
-- **unity_interface.py**: HTTP API server for Unity frontend integration
+## Project Layout
 
-## Installation
-
-```bash
-pip install rebound numpy astropy flask flask-cors
+```text
+.
+├── src/
+│   ├── main_simulation.py
+│   ├── integrator_check.py
+│   ├── database.py
+│   └── extra_function.py
+├── data/
+│   ├── solar_system.json
+│   └── gen/
+├── Justfile
+├── pyproject.toml
+└── LICENSE
 ```
 
-### Dependencies
-- `rebound`: N-body simulation library
-- `reboundx`: Additional physics effects (GR, post-Newtonian)
-- `numpy`: Numerical computations
-- `astropy`: Astronomical calculations
-- `flask`: Web server for Unity integration
-- `flask-cors`: Cross-origin resource sharing
+## Integrator Choice (Mercurius Only)
 
-## Project Structure
+This prototype standardizes on **Mercurius** as the only integrator in normal workflow.
 
-```
-ASC/
-├── main.py                  # Basic simulation examples and verification
-├── celestial_bodies.py      # Solar System celestial body database
-├── asteroid_belt.py         # Asteroid belt generation algorithms
-├── simulation_engine.py     # Advanced simulation engine with Unity sync
-├── sandbox_engine.py        # Sandbox engine for smooth visualization
-└── unity_interface.py       # Unity HTTP API interface server
-```
+Why Mercurius:
 
-## Usage
+- Hybrid strategy for better practical performance/accuracy balance
+- Better handling for close-encounter style scenarios than pure symplectic-only setup
+- Good fit for prototype-stage validation workloads
 
-### Basic Solar System Simulation
+Notes:
 
-```python
-from main import create_solar_system_simulation
+- `main_simulation.py` defaults to Mercurius
+- `integrator_check.py` defaults to Mercurius
+- Team policy for this prototype: do not switch to other integrators in routine runs
 
-# Create basic solar system
-sim = create_solar_system_simulation()
-print(f"Number of bodies: {len(sim.particles)}")
-```
+## Technologies
 
-### Solar System with Moons
+- **REBOUND**: N-body integration engine
+- **REBOUNDx**: extra physical effects (GR term enabled in this project)
+- **Python stdlib** (`argparse`, `csv`, `json`): CLI, validation output, data streaming
+- **Just**: reproducible local workflow (`venv`, install, run)
 
-```python
-from main import create_solar_system_with_moons
+## Runtime Environment
 
-# Include major moons
-sim = create_solar_system_with_moons()
-print(f"Bodies with moons: {len(sim.particles)}")
+Recommended:
+
+- Windows 10/11 (PowerShell)
+- Python 3.10+
+- Optional: `just` command runner
+
+Install `just` (optional):
+
+```powershell
+cargo install just
 ```
 
-### Realistic Asteroid Belt
+## Quick Start
 
-```python
-from main import create_realistic_asteroid_system
+### Option A: Just (recommended)
 
-# Create asteroid system with 20,000 main belt asteroids
-# plus 3,000 Hilda group and 5,000 Trojans
-sim = create_realistic_asteroid_system(N=20000, seed=42)
+Run numerical check with default fallback arguments:
+
+```powershell
+just integrator-check
 ```
 
-### Unity Integration (HTTP API)
+Run with custom arguments:
 
-```python
-# Start the Unity interface server
-python unity_interface.py
-
-# Server will be available at http://localhost:5000
-# API endpoints:
-# - POST /api/simulation/init  - Initialize simulation
-# - POST /api/simulation/step  - Advance simulation
-# - GET  /api/simulation/state - Get current state
-# - POST /api/simulation/speed - Adjust time speed
+```powershell
+just integrator-check "--years 10000 --steps 50000 --sample-bodies Mercury,Earth --output-csv data/gen/custom_check.csv"
 ```
 
-### Run Verification Tests
+Run the main simulation stream:
 
-```bash
-python main.py
+```powershell
+just simulate
 ```
 
-This will:
-1. List all available celestial bodies in the database
-2. Verify orbital elements against expected values
-3. Create and demonstrate different simulation configurations
+### Option B: Python directly
 
-## Technical Details
-
-### Unit System
-- **Distance**: Astronomical Units (AU)
-- **Time**: Years (yr)
-- **Mass**: Solar masses (Msun)
-
-### Integrators
-- **IAS15**: Adaptive step-size, 15th order (default for high accuracy)
-  - Best for close encounters and highly eccentric orbits
-- **WHFast**: Symplectic, 2nd order (faster for large systems)
-  - Best for large number of particles with stable orbits
-
-### Time Control
-- Adjustable time speed factor: 0.1x to 100x
-- Synchronized with Unity at 60 FPS
-- Configurable steps per frame for performance tuning
-- Real-time orbital mechanics validation
-
-### Performance
-- Supports 20,000+ asteroids with WHFast integrator
-- Optimized for smooth visualization (sandbox mode)
-- Memory-efficient particle management
-
-## Examples
-
-### Custom Planetary System
-
-```python
-from main import create_custom_system
-from celestial_bodies import SolarSystemBodies
-
-# Create inner planets + Jupiter + Galilean moons
-sim = create_custom_system()
+```powershell
+$env:PYTHONPATH="src"
+$env:PYTHONPYCACHEPREFIX="__pycache__"
+.\.venv\Scripts\python.exe -m integrator_check
+.\.venv\Scripts\python.exe -m main_simulation
 ```
 
-### Verify Orbital Elements
+## Units and Data Conventions
 
-```python
-from main import verify_orbital_elements
+- Distance: AU
+- Time: yr
+- Velocity: AU/yr
+- Mass: Msun
 
-# Check orbital element accuracy
-verify_orbital_elements()
-```
+In `data/solar_system.json`, angular fields (`inc`, `Omega`, `omega`, `M`) are stored in **degrees** and converted to radians in code before passing into REBOUND.
 
-## Recent Updates
+## Windows Notes: Possible REBOUNDx Adjustments
 
-- Optimized asteroid belt generation algorithms
-- Added Kirkwood gap, Hilda group, and Trojans simulation
-- Implemented comprehensive Solar System planet database
-- Added dwarf planets and major moons
-- Created Unity integration interface with HTTP API
-- Implemented time synchronization for real-time visualization
+On Windows, `reboundx` may require environment-specific adjustments depending on Python version and toolchain.
+Possible actions:
+
+1. Prefer binary wheels first (`pip install reboundx`)
+2. If wheel is unavailable, build from source with a working C/C++ toolchain
+3. If import fails, check `.pyd/.dll` dependency resolution (PATH/runtime libraries)
+4. Use `.tmp_reboundx/` as local temporary build/debug workspace if needed
+
+These are platform/toolchain concerns, not changes to project physics logic.
+
+## Generated Files
+
+- Simulation stream: `data/gen/simulation_stream.jsonl`
+- Validation CSV: `data/gen/integrator_samples.csv` (overridable by CLI args)
 
 ## License
 
-Personal project for educational and research purposes.
-
-## References
-
-- REBOUND: https://github.com/hannorein/rebound
-- REBOUNDx: https://github.com/dtamayo/reboundx
-- JPL Horizons: https://ssd.jpl.nasa.gov/horizons.cgi
+This project is released under **GNU GPL v3.0**. See `LICENSE`.
