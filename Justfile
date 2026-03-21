@@ -44,6 +44,24 @@ mpc:
 mpx args="":
     just mercury-perihelion-custom args="{{args}}"
 
+# Water Mercury perihelion quick help (prints to terminal)
+mp-help:
+    @Write-Host "Mercury perihelion tests (REBOUNDx GR):"
+    @Write-Host ""
+    @Write-Host "  just mp"
+    @Write-Host "    - Run 2000y with REBOUNDx enabled, prints drift + perihelion rate."
+    @Write-Host "    - Writes: data/gen/mercury_reboundx_2000y.csv"
+    @Write-Host ""
+    @Write-Host "  just mpc"
+    @Write-Host "    - Compare WITHOUT vs WITH REBOUNDx (same params), prints both rates + delta."
+    @Write-Host "    - Writes: data/gen/mercury_perihelion_2000y_no_reboundx.csv"
+    @Write-Host "             data/gen/mercury_perihelion_2000y_with_reboundx.csv"
+    @Write-Host ""
+    @Write-Host "Customize years/steps (dt = years/steps):"
+    @Write-Host "  just mpx args=\"--years 5000 --steps 1000000 --sample-stride 5000 --output-csv data/gen/mercury_5000y.csv\""
+    @Write-Host ""
+    @Write-Host "Tip: smaller dt (more steps) is slower but usually more stable/accurate."
+
 simulate: install
     New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
     $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; {{python}} -m main_simulation
