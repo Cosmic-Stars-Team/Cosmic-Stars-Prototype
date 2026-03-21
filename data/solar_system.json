@@ -14,82 +14,661 @@
     {
       "name": "Mercury",
       "mass": 1.660136e-7,
+      "radius": 1.632e-5,
       "a": 0.387098,
       "e": 0.20563,
       "inc": 7.005,
       "Omega": 48.331,
       "omega": 29.124,
-      "M": 174.796
+      "M": 174.796,
+      "satellites": []
     },
     {
       "name": "Venus",
       "mass": 2.447838e-6,
+      "radius": 4.250e-5,
       "a": 0.723332,
       "e": 0.00677,
       "inc": 3.394,
       "Omega": 76.680,
       "omega": 54.884,
-      "M": 50.115
+      "M": 50.115,
+      "satellites": []
     },
     {
       "name": "Earth",
       "mass": 3.003489e-6,
+      "radius": 4.259e-5,
       "a": 1.000000,
       "e": 0.01671,
       "inc": 0.000,
       "Omega": -11.260,
       "omega": 102.947,
-      "M": 357.517
+      "M": 357.517,
+      "satellites": [
+        {
+          "name": "Moon",
+          "mass": 3.694e-8,
+          "radius": 1.158e-5,
+          "a": 0.00257,
+          "e": 0.0549,
+          "inc": 5.145,
+          "Omega": 125.08,
+          "omega": 318.15,
+          "M": 135.27
+        }
+      ]
     },
     {
       "name": "Mars",
       "mass": 3.227151e-7,
+      "radius": 2.272e-5,
       "a": 1.523679,
       "e": 0.09341,
       "inc": 1.850,
       "Omega": 49.578,
       "omega": 286.502,
-      "M": 19.412
+      "M": 19.412,
+      "satellites": [
+        {
+          "name": "Phobos",
+          "mass": 1.0659e-14,
+          "radius": 6.2e-8,
+          "a": 6.2e-5,
+          "e": 0.0151,
+          "inc": 1.093,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Deimos",
+          "mass": 1.4762e-15,
+          "radius": 3.4e-8,
+          "a": 1.56e-4,
+          "e": 0.00033,
+          "inc": 1.791,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
     },
     {
       "name": "Jupiter",
       "mass": 9.547919e-4,
+      "radius": 0.0004779,
       "a": 5.204267,
       "e": 0.04849,
       "inc": 1.305,
       "Omega": 100.556,
       "omega": 273.867,
-      "M": 20.020
+      "M": 20.020,
+      "satellites": [
+        {
+          "name": "Io",
+          "mass": 4.706e-8,
+          "radius": 1.215e-5,
+          "a": 0.002819,
+          "e": 0.0041,
+          "inc": 0.050,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Europa",
+          "mass": 2.526e-8,
+          "radius": 9.731e-6,
+          "a": 0.004485,
+          "e": 0.0094,
+          "inc": 0.470,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Ganymede",
+          "mass": 7.808e-8,
+          "radius": 1.526e-5,
+          "a": 0.007155,
+          "e": 0.0013,
+          "inc": 0.195,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Callisto",
+          "mass": 5.674e-8,
+          "radius": 1.417e-5,
+          "a": 0.012569,
+          "e": 0.0074,
+          "inc": 0.192,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Amalthea",
+          "mass": 7.177e-14,
+          "radius": 4.98e-7,
+          "a": 0.000839,
+          "e": 0.0032,
+          "inc": 0.388,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Himalia",
+          "mass": 6.735e-14,
+          "radius": 4.31e-7,
+          "a": 0.006955,
+          "e": 0.1579,
+          "inc": 27.496,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Thebe",
+          "mass": 1.493e-14,
+          "radius": 2.91e-7,
+          "a": 0.000603,
+          "e": 0.0175,
+          "inc": 0.795,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
     },
     {
       "name": "Saturn",
       "mass": 2.858859e-4,
+      "radius": 0.0004037,
       "a": 9.582017,
       "e": 0.05555,
       "inc": 2.484,
       "Omega": 113.715,
       "omega": 339.392,
-      "M": 317.020
+      "M": 317.020,
+      "satellites": [
+        {
+          "name": "Mimas",
+          "mass": 3.749e-11,
+          "radius": 1.048e-6,
+          "a": 0.000807,
+          "e": 0.0202,
+          "inc": 1.537,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Enceladus",
+          "mass": 1.081e-10,
+          "radius": 1.302e-6,
+          "a": 0.001228,
+          "e": 0.0047,
+          "inc": 0.009,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Tethys",
+          "mass": 6.175e-10,
+          "radius": 1.775e-6,
+          "a": 0.001878,
+          "e": 0.0001,
+          "inc": 1.091,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Dione",
+          "mass": 1.096e-9,
+          "radius": 2.122e-6,
+          "a": 0.002524,
+          "e": 0.0022,
+          "inc": 0.028,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Rhea",
+          "mass": 2.307e-9,
+          "radius": 2.646e-6,
+          "a": 0.003523,
+          "e": 0.0013,
+          "inc": 0.333,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Titan",
+          "mass": 2.374e-7,
+          "radius": 1.086e-5,
+          "a": 0.008168,
+          "e": 0.0288,
+          "inc": 0.34854,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Hyperion",
+          "mass": 5.619e-13,
+          "radius": 6.62e-7,
+          "a": 0.009441,
+          "e": 0.1042,
+          "inc": 0.577,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Iapetus",
+          "mass": 1.807e-9,
+          "radius": 2.692e-6,
+          "a": 0.023891,
+          "e": 0.0284,
+          "inc": 7.570,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
     },
     {
       "name": "Uranus",
       "mass": 4.366244e-5,
+      "radius": 0.0001571,
       "a": 19.229411,
       "e": 0.04638,
       "inc": 0.773,
       "Omega": 74.006,
       "omega": 96.998,
-      "M": 142.590
+      "M": 142.590,
+      "satellites": [
+        {
+          "name": "Ariel",
+          "mass": 1.353e-10,
+          "radius": 9.17e-7,
+          "a": 0.000603,
+          "e": 0.0012,
+          "inc": 0.260,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Umbriel",
+          "mass": 1.172e-10,
+          "radius": 8.62e-7,
+          "a": 0.000815,
+          "e": 0.0039,
+          "inc": 0.205,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Titania",
+          "mass": 3.527e-10,
+          "radius": 1.289e-6,
+          "a": 0.001148,
+          "e": 0.0011,
+          "inc": 0.340,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Oberon",
+          "mass": 3.014e-10,
+          "radius": 1.223e-6,
+          "a": 0.001581,
+          "e": 0.0013,
+          "inc": 0.058,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Miranda",
+          "mass": 6.595e-12,
+          "radius": 4.81e-7,
+          "a": 0.000416,
+          "e": 0.0013,
+          "inc": 4.232,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
     },
     {
       "name": "Neptune",
       "mass": 5.151389e-5,
+      "radius": 0.0001500,
       "a": 30.103662,
       "e": 0.00946,
       "inc": 1.770,
       "Omega": 131.784,
       "omega": 273.187,
-      "M": 260.247
+      "M": 260.247,
+      "satellites": [
+        {
+          "name": "Triton",
+          "mass": 1.071e-7,
+          "radius": 1.353e-5,
+          "a": 0.002367,
+          "e": 0.000016,
+          "inc": 156.865,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0,
+          "retrograde": true
+        },
+        {
+          "name": "Nereid",
+          "mass": 3.087e-13,
+          "radius": 3.76e-7,
+          "a": 0.024571,
+          "e": 0.7507,
+          "inc": 27.43,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Proteus",
+          "mass": 4.444e-12,
+          "radius": 4.18e-7,
+          "a": 0.000314,
+          "e": 0.0005,
+          "inc": 0.524,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Larissa",
+          "mass": 4.945e-14,
+          "radius": 1.94e-7,
+          "a": 0.000355,
+          "e": 0.0014,
+          "inc": 0.201,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    }
+  ],
+  "dwarf_planets": [
+    {
+      "name": "Ceres",
+      "mass": 4.72e-10,
+      "radius": 3.43e-6,
+      "a": 2.7662,
+      "e": 0.076,
+      "inc": 10.59,
+      "Omega": 80.3,
+      "omega": 73.1,
+      "M": 95.0,
+      "classification": "asteroid",
+      "satellites": []
+    },
+    {
+      "name": "Pluto",
+      "mass": 1.307e-8,
+      "radius": 5.653e-5,
+      "a": 39.482,
+      "e": 0.2488,
+      "inc": 17.14,
+      "Omega": 110.3,
+      "omega": 113.8,
+      "M": 14.9,
+      "classification": "plutoid",
+      "satellites": [
+        {
+          "name": "Charon",
+          "mass": 1.586e-9,
+          "radius": 3.032e-5,
+          "a": 0.000644,
+          "e": 0.00005,
+          "inc": 0.08,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Nix",
+          "mass": 1.762e-15,
+          "radius": 1.97e-7,
+          "a": 0.001155,
+          "e": 0.0131,
+          "inc": 0.21,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Hydra",
+          "mass": 1.543e-15,
+          "radius": 1.97e-7,
+          "a": 0.001562,
+          "e": 0.0056,
+          "inc": 0.24,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Kerberos",
+          "mass": 5.029e-16,
+          "radius": 1.21e-7,
+          "a": 0.001132,
+          "e": 0.0,
+          "inc": 0.16,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Styx",
+          "mass": 2.784e-16,
+          "radius": 9.7e-8,
+          "a": 0.000949,
+          "e": 0.0,
+          "inc": 0.05,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Eris",
+      "mass": 1.661e-8,
+      "radius": 5.823e-5,
+      "a": 67.668,
+      "e": 0.4407,
+      "inc": 44.04,
+      "Omega": 37.0,
+      "omega": 287.0,
+      "M": 203.0,
+      "classification": "plutoid",
+      "satellites": [
+        {
+          "name": "Dysnomia",
+          "mass": 1.662e-11,
+          "radius": 1.5e-6,
+          "a": 0.000479,
+          "e": 0.0,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Haumea",
+      "mass": 2.006e-9,
+      "radius": 3.98e-5,
+      "a": 43.33,
+      "e": 0.1952,
+      "inc": 28.19,
+      "Omega": 122.0,
+      "omega": 153.0,
+      "M": 12.0,
+      "classification": "plutoid",
+      "shape": "ellipsoid",
+      "satellites": [
+        {
+          "name": "Hiʻiaka",
+          "mass": 4.424e-13,
+          "radius": 5.15e-7,
+          "a": 0.000563,
+          "e": 0.0513,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        },
+        {
+          "name": "Namaka",
+          "mass": 4.424e-14,
+          "radius": 1.58e-7,
+          "a": 0.000137,
+          "e": 0.249,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Makemake",
+      "mass": 3.100e-9,
+      "radius": 3.659e-5,
+      "a": 45.79,
+      "e": 0.1889,
+      "inc": 29.00,
+      "Omega": 173.0,
+      "omega": 70.0,
+      "M": 7.0,
+      "classification": "plutoid",
+      "satellites": [
+        {
+          "name": "MK2",
+          "mass": 1.000e-15,
+          "radius": 1.58e-7,
+          "a": 0.000339,
+          "e": 0.0,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Gonggong",
+      "mass": 1.754e-9,
+      "radius": 3.074e-5,
+      "a": 67.47,
+      "e": 0.5025,
+      "inc": 30.74,
+      "Omega": 278.0,
+      "omega": 174.0,
+      "M": 118.0,
+      "classification": "candidate",
+      "satellites": [
+        {
+          "name": "Xiangliu",
+          "mass": 1.000e-15,
+          "radius": 1.26e-7,
+          "a": 0.000566,
+          "e": 0.0,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Quaoar",
+      "mass": 1.250e-9,
+      "radius": 2.795e-5,
+      "a": 43.37,
+      "e": 0.0356,
+      "inc": 7.99,
+      "Omega": 290.0,
+      "omega": 215.0,
+      "M": 288.0,
+      "classification": "candidate",
+      "satellites": [
+        {
+          "name": "Weywot",
+          "mass": 5.029e-15,
+          "radius": 1.58e-7,
+          "a": 0.000448,
+          "e": 0.14,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
+    },
+    {
+      "name": "Sedna",
+      "mass": 1.000e-9,
+      "radius": 2.487e-5,
+      "a": 506.2,
+      "e": 0.8426,
+      "inc": 11.38,
+      "Omega": 144.0,
+      "omega": 311.0,
+      "M": 357.0,
+      "classification": "detached",
+      "satellites": []
+    },
+    {
+      "name": "Orcus",
+      "mass": 6.324e-10,
+      "radius": 2.298e-5,
+      "a": 39.17,
+      "e": 0.2262,
+      "inc": 20.58,
+      "Omega": 266.0,
+      "omega": 280.0,
+      "M": 7.0,
+      "classification": "plutino",
+      "satellites": [
+        {
+          "name": "Vanth",
+          "mass": 5.029e-14,
+          "radius": 1.58e-7,
+          "a": 0.000410,
+          "e": 0.007,
+          "inc": 0.0,
+          "Omega": 0.0,
+          "omega": 0.0,
+          "M": 0.0
+        }
+      ]
     }
   ]
 }

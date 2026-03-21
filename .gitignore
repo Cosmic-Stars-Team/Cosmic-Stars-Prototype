@@ -22,7 +22,9 @@ dist/
 
 # Local/temp artifacts
 .tmp_reboundx/
+.tmp_rebound_src/
 *.log
 data/gen/
+REBOUND_INTEGRATOR_SOURCE_EXPLAINED.md
 .DS_Store
 Thumbs.db
