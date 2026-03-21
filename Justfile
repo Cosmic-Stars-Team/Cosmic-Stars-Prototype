@@ -19,6 +19,31 @@ integrator-check args="": install
     New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
     $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; if ("{{args}}" -eq "") { {{python}} -m integrator_check --years 10 --steps 20000 --sample-stride 200 --sample-bodies 'Mercury,Earth' --output-csv 'data/gen/integrator_samples.csv' } else { {{python}} -m integrator_check {{args}} }
 
+# 启用 REBOUNDx 的水星近日点进动测试（固定 2000 年，开箱即用）
+mercury-perihelion: install
+    New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
+    $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; {{python}} -m integrator_check --integrator mercurius --use-reboundx --report-mercury-perihelion --years 2000 --steps 400000 --sample-bodies 'Mercury' --sample-stride 2000 --output-csv 'data/gen/mercury_reboundx_2000y.csv'
+
+# 开/关 REBOUNDx 对照测试（固定 2000 年，输出两个 CSV）
+mercury-perihelion-compare: install
+    New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
+    $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; {{python}} -m integrator_check --integrator mercurius --compare-reboundx --report-mercury-perihelion --years 2000 --steps 400000 --sample-bodies 'Mercury' --sample-stride 2000 --output-csv 'data/gen/mercury_perihelion_2000y.csv'
+
+# 启用 REBOUNDx 的水星近日点进动测试（可自定义参数）
+mercury-perihelion-custom args="": install
+    New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
+    $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; if ("{{args}}" -eq "") { {{python}} -m integrator_check --integrator mercurius --use-reboundx --report-mercury-perihelion --years 2000 --steps 400000 --sample-bodies 'Mercury' --sample-stride 2000 --output-csv 'data/gen/mercury_reboundx_custom.csv' } else { {{python}} -m integrator_check --integrator mercurius --use-reboundx --report-mercury-perihelion {{args}} }
+
+# 更短的别名（更顺手）
+mp:
+    just mercury-perihelion
+
+mpc:
+    just mercury-perihelion-compare
+
+mpx args="":
+    just mercury-perihelion-custom args="{{args}}"
+
 simulate: install
     New-Item -ItemType Directory -Path data\\gen -Force | Out-Null
     $env:PYTHONPYCACHEPREFIX='{{pycache}}'; $env:PYTHONPATH='{{py_path}}'; {{python}} -m main_simulation
