@@ -13,6 +13,8 @@ authors = [
   { name = "Cosmic Stars Team" }
 ]
 dependencies = [
+  "numpy",
+  "OpenEXR",
   "rebound",
   "reboundx",
 ]
@@ -20,7 +22,8 @@ dependencies = [
 [project.scripts]
 cosmic-sim = "main_simulation:main"
 cosmic-integrator-check = "integrator_check:main"
+cosmic-bake-far-field-lut = "far_field_lut_baker:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-py-modules = ["database", "extra_function", "integrator_check", "main_simulation"]
+py-modules = ["database", "extra_function", "far_field_lut_baker", "integrator_check", "main_simulation"]
