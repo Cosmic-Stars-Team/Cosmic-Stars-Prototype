@@ -13,8 +13,10 @@ authors = [
   { name = "Cosmic Stars Team" }
 ]
 dependencies = [
+  "colour-science",
   "numpy",
   "OpenEXR",
+  "pillow",
   "rebound",
   "reboundx",
 ]
@@ -22,8 +24,10 @@ dependencies = [
 [project.scripts]
 cosmic-sim = "main_simulation:main"
 cosmic-integrator-check = "integrator_check:main"
+cosmic-bake-blackbody-lut = "blackbody_1d_lut_baker:main"
 cosmic-bake-far-field-lut = "far_field_lut_baker:main"
+cosmic-exr-preview = "exr_preview:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-py-modules = ["database", "extra_function", "far_field_lut_baker", "integrator_check", "main_simulation"]
+py-modules = ["blackbody_1d_lut_baker", "database", "exr_preview", "extra_function", "far_field_lut_baker", "integrator_check", "main_simulation"]

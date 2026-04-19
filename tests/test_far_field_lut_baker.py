@@ -133,7 +133,7 @@ class FarFieldLutBakerTests(unittest.TestCase):
             b_max,
         )
 
-    def test_x_axis_clusters_more_than_eighty_percent_of_pixels_near_b_crit(self) -> None:
+    def test_x_axis_maps_linearly_across_the_physical_interval(self) -> None:
         rs = 1.0
         width = 4096
         epsilon = 1.0e-6
@@ -143,7 +143,7 @@ class FarFieldLutBakerTests(unittest.TestCase):
         span = b_max - b_min
         x_80 = int(round(0.8 * (width - 1)))
 
-        clustered_b = map_pixel_x_to_b(
+        mapped_b = map_pixel_x_to_b(
             x_80,
             width=width,
             b_crit=b_crit,
@@ -151,9 +151,9 @@ class FarFieldLutBakerTests(unittest.TestCase):
             epsilon=epsilon,
             cluster_strength=DEFAULT_CLUSTER_STRENGTH,
         )
-        normalized_span = (clustered_b - b_min) / span
+        normalized_span = (mapped_b - b_min) / span
 
-        self.assertLessEqual(normalized_span, 0.201)
+        self.assertAlmostEqual(normalized_span, 0.8, places=9)
 
     def test_inverse_x_mapping_round_trips(self) -> None:
         rs = 1.0

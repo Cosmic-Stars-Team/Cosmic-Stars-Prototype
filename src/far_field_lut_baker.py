@@ -63,19 +63,15 @@ def map_pixel_x_to_b(
     cluster_strength: float = DEFAULT_CLUSTER_STRENGTH,
 ) -> float:
     """
-    Exponential mapping that clusters samples near b_crit.
+    Linear mapping from texture X to impact parameter.
 
     t = x / (width - 1)
-    s(t) = (exp(k * t) - 1) / (exp(k) - 1)
-    b(t) = (b_crit + epsilon) + (b_max - (b_crit + epsilon)) * s(t)
+    b(t) = (b_crit + epsilon) + (b_max - (b_crit + epsilon)) * t
 
-    With k = 8.1, roughly the first 80% of texels cover only ~19.8% of the
-    physical [b_min, b_max] interval.
+    cluster_strength is accepted for API compatibility but ignored.
     """
     if width < 2:
         raise ValueError("width must be at least 2")
-    if cluster_strength <= 0.0:
-        raise ValueError("cluster_strength must be > 0")
     if epsilon <= 0.0:
         raise ValueError("epsilon must be > 0")
     if b_max <= b_crit + epsilon:
@@ -86,8 +82,7 @@ def map_pixel_x_to_b(
     t = x / (width - 1)
     b_min = b_crit + epsilon
     span = b_max - b_min
-    scaled = math.expm1(cluster_strength * t) / math.expm1(cluster_strength)
-    return b_min + span * scaled
+    return b_min + span * t
 
 
 def map_b_to_uv_x(
@@ -102,10 +97,10 @@ def map_b_to_uv_x(
     Inverse of map_pixel_x_to_b in normalized UV space.
 
     n = (b - (b_crit + epsilon)) / (b_max - (b_crit + epsilon))
-    uv.x = ln(1 + n * (exp(k) - 1)) / k
+    uv.x = n
+
+    cluster_strength is accepted for API compatibility but ignored.
     """
-    if cluster_strength <= 0.0:
-        raise ValueError("cluster_strength must be > 0")
     if epsilon <= 0.0:
         raise ValueError("epsilon must be > 0")
     b_min = b_crit + epsilon
@@ -114,8 +109,7 @@ def map_b_to_uv_x(
     if not (b_min <= b <= b_max):
         raise ValueError(f"b={b} is outside [{b_min}, {b_max}]")
 
-    normalized = (b - b_min) / (b_max - b_min)
-    return math.log1p(normalized * math.expm1(cluster_strength)) / cluster_strength
+    return (b - b_min) / (b_max - b_min)
 
 
 def _unwrap_angle(previous_angle: float, current_angle: float) -> float:
