@@ -194,20 +194,20 @@ pub fn generate_lut(config: &BakeConfig) -> Result<LutBuffer> {
     let mut lut = LutBuffer::new(config.width, config.height);
 
     if resolved_workers == 1 {
-        let (_, chunk) = generate_column_range(
-            0,
-            config.width,
-            config.width,
-            &u_values,
-            config.rs,
-            config.boundary_radius_rs,
+        let (_, chunk) = generate_column_range(&ColumnRangeParams {
+            x_start: 0,
+            x_stop: config.width,
+            width: config.width,
+            u_values: &u_values,
+            rs: config.rs,
+            boundary_radius_rs: config.boundary_radius_rs,
             b_crit,
-            resolved_b_max,
+            b_max: resolved_b_max,
             epsilon,
-            config.cluster_strength,
-            config.ias15_epsilon,
-            config.ias15_initial_dt_scale,
-        )?;
+            cluster_strength: config.cluster_strength,
+            ias15_epsilon: config.ias15_epsilon,
+            ias15_initial_dt_scale: config.ias15_initial_dt_scale,
+        })?;
         lut.data.copy_from_slice(&chunk);
         return Ok(lut);
     }
@@ -222,20 +222,20 @@ pub fn generate_lut(config: &BakeConfig) -> Result<LutBuffer> {
         chunk_ranges
             .into_par_iter()
             .map(|(x_start, x_stop)| {
-                generate_column_range(
+                generate_column_range(&ColumnRangeParams {
                     x_start,
                     x_stop,
-                    config.width,
-                    &u_values,
-                    config.rs,
-                    config.boundary_radius_rs,
+                    width: config.width,
+                    u_values: &u_values,
+                    rs: config.rs,
+                    boundary_radius_rs: config.boundary_radius_rs,
                     b_crit,
-                    resolved_b_max,
+                    b_max: resolved_b_max,
                     epsilon,
-                    config.cluster_strength,
-                    config.ias15_epsilon,
-                    config.ias15_initial_dt_scale,
-                )
+                    cluster_strength: config.cluster_strength,
+                    ias15_epsilon: config.ias15_epsilon,
+                    ias15_initial_dt_scale: config.ias15_initial_dt_scale,
+                })
             })
             .collect::<Vec<_>>()
     });
@@ -485,11 +485,11 @@ fn current_radius_and_angle(sim: &Simulation) -> Result<(f64, f64)> {
     ))
 }
 
-fn generate_column_range(
+struct ColumnRangeParams<'a> {
     x_start: usize,
     x_stop: usize,
     width: usize,
-    u_values: &[f64],
+    u_values: &'a [f64],
     rs: f64,
     boundary_radius_rs: f64,
     b_crit: f64,
@@ -498,26 +498,35 @@ fn generate_column_range(
     cluster_strength: f64,
     ias15_epsilon: f64,
     ias15_initial_dt_scale: f64,
-) -> Result<(usize, Vec<f32>)> {
-    let local_width = x_stop - x_start;
-    let mut chunk = vec![0.0_f32; u_values.len() * local_width];
+}
 
-    for (local_x, x) in (x_start..x_stop).enumerate() {
-        let b = map_pixel_x_to_b(x, width, b_crit, b_max, epsilon, cluster_strength)?;
+fn generate_column_range(params: &ColumnRangeParams<'_>) -> Result<(usize, Vec<f32>)> {
+    let local_width = params.x_stop - params.x_start;
+    let mut chunk = vec![0.0_f32; params.u_values.len() * local_width];
+
+    for (local_x, x) in (params.x_start..params.x_stop).enumerate() {
+        let b = map_pixel_x_to_b(
+            x,
+            params.width,
+            params.b_crit,
+            params.b_max,
+            params.epsilon,
+            params.cluster_strength,
+        )?;
         let column = trace_column_deflections(
-            u_values,
+            params.u_values,
             b,
-            rs,
-            boundary_radius_rs,
-            ias15_epsilon,
-            ias15_initial_dt_scale,
+            params.rs,
+            params.boundary_radius_rs,
+            params.ias15_epsilon,
+            params.ias15_initial_dt_scale,
         )?;
         for (y, value) in column.into_iter().enumerate() {
             chunk[y * local_width + local_x] = value as f32;
         }
     }
 
-    Ok((x_start, chunk))
+    Ok((params.x_start, chunk))
 }
 
 fn resolve_worker_count(workers: isize) -> usize {
