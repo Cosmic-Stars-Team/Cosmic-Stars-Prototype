@@ -1,0 +1,14 @@
+[package]
+name = "far-field-lut-baker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+exr.workspace = true
+rayon.workspace = true
+rebound.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
