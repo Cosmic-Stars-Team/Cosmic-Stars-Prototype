@@ -20,6 +20,10 @@ DEFAULT_HEIGHT = 1
 DEFAULT_MIN_TEMPERATURE_K = 0.0
 DEFAULT_MAX_TEMPERATURE_K = 40000.0
 DEFAULT_FADE_TO_BLACK_END_K = 1000.0
+DEFAULT_PRIMARY_SEGMENT_END_K = 12000.0
+DEFAULT_SECONDARY_SEGMENT_END_K = 20000.0
+DEFAULT_PRIMARY_SEGMENT_FRACTION = 0.85
+DEFAULT_SECONDARY_SEGMENT_FRACTION = 0.95
 DEFAULT_OUTPUT = "data/gen/blackbody_1d_lut_4k.exr"
 
 
@@ -52,6 +56,106 @@ def smoothstep(edge0: float, edge1: float, x: float) -> float:
     return float(t * t * (3.0 - 2.0 * t))
 
 
+def _temperature_segment_points(
+    *,
+    min_temperature_k: float,
+    max_temperature_k: float,
+) -> tuple[tuple[float, float, float, float], tuple[float, float, float, float]]:
+    if max_temperature_k < min_temperature_k:
+        raise ValueError("max_temperature_k must be >= min_temperature_k")
+
+    primary_segment_end_k = min(
+        max(DEFAULT_PRIMARY_SEGMENT_END_K, min_temperature_k),
+        max_temperature_k,
+    )
+    secondary_segment_end_k = min(
+        max(DEFAULT_SECONDARY_SEGMENT_END_K, primary_segment_end_k),
+        max_temperature_k,
+    )
+
+    return (
+        (
+            min_temperature_k,
+            primary_segment_end_k,
+            secondary_segment_end_k,
+            max_temperature_k,
+        ),
+        (
+            0.0,
+            DEFAULT_PRIMARY_SEGMENT_FRACTION,
+            DEFAULT_SECONDARY_SEGMENT_FRACTION,
+            1.0,
+        ),
+    )
+
+
+def _map_piecewise_linear(
+    value: float,
+    *,
+    source_points: tuple[float, float, float, float],
+    target_points: tuple[float, float, float, float],
+) -> float:
+    clamped_value = min(max(value, source_points[0]), source_points[-1])
+    for index in range(len(source_points) - 1):
+        source_start = source_points[index]
+        source_end = source_points[index + 1]
+        target_start = target_points[index]
+        target_end = target_points[index + 1]
+        if source_end <= source_start:
+            continue
+        if clamped_value <= source_end or index == len(source_points) - 2:
+            blend = (clamped_value - source_start) / (source_end - source_start)
+            return target_start + (target_end - target_start) * blend
+    return target_points[-1]
+
+
+def map_temperature_to_uv_x(
+    temperature_k: float,
+    *,
+    min_temperature_k: float = DEFAULT_MIN_TEMPERATURE_K,
+    max_temperature_k: float = DEFAULT_MAX_TEMPERATURE_K,
+) -> float:
+    """
+    Map temperature to normalized LUT X using three piecewise-linear segments:
+    0-12k K -> 85% of the texture, 12k-20k K -> 10%, and 20k-40k K -> 5%.
+    Segment endpoints are clamped when the caller narrows the temperature range.
+    """
+    if temperature_k < min_temperature_k:
+        raise ValueError("temperature_k must be >= min_temperature_k")
+    if temperature_k > max_temperature_k:
+        raise ValueError("temperature_k must be <= max_temperature_k")
+
+    temperature_points, uv_points = _temperature_segment_points(
+        min_temperature_k=min_temperature_k,
+        max_temperature_k=max_temperature_k,
+    )
+    return _map_piecewise_linear(
+        temperature_k,
+        source_points=temperature_points,
+        target_points=uv_points,
+    )
+
+
+def map_uv_x_to_temperature(
+    uv_x: float,
+    *,
+    min_temperature_k: float = DEFAULT_MIN_TEMPERATURE_K,
+    max_temperature_k: float = DEFAULT_MAX_TEMPERATURE_K,
+) -> float:
+    if not (0.0 <= uv_x <= 1.0):
+        raise ValueError("uv_x must be within [0, 1]")
+
+    temperature_points, uv_points = _temperature_segment_points(
+        min_temperature_k=min_temperature_k,
+        max_temperature_k=max_temperature_k,
+    )
+    return _map_piecewise_linear(
+        uv_x,
+        source_points=uv_points,
+        target_points=temperature_points,
+    )
+
+
 def map_pixel_x_to_temperature(
     x: int,
     *,
@@ -60,8 +164,8 @@ def map_pixel_x_to_temperature(
     max_temperature_k: float = DEFAULT_MAX_TEMPERATURE_K,
 ) -> float:
     """
-    Map texture X to temperature using a quadratic curve so lower temperatures
-    receive more texel density than the visually flatter high-temperature tail.
+    Map texture X to temperature using piecewise-linear segments so the LUT
+    dedicates most texels to the accretion disk's most visually active range.
     """
     if width < 2:
         raise ValueError("width must be at least 2")
@@ -71,7 +175,11 @@ def map_pixel_x_to_temperature(
         raise ValueError(f"x={x} is out of range for width={width}")
 
     u = x / (width - 1)
-    return min_temperature_k + (max_temperature_k - min_temperature_k) * (u * u)
+    return map_uv_x_to_temperature(
+        u,
+        min_temperature_k=min_temperature_k,
+        max_temperature_k=max_temperature_k,
+    )
 
 
 def temperature_to_cie_xy(temperature_k: float) -> np.ndarray:

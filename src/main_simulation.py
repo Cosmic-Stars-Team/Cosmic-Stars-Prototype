@@ -39,6 +39,7 @@ def create_simulation(data=None, use_reboundx: bool = True):
 
     # 创建模拟对象
     sim = rebound.Simulation()
+    sim.coordinates = "jacobi"
 
     # 设置单位系统：年、天文单位、太阳质量
     sim.units = ("yr", "AU", "Msun")

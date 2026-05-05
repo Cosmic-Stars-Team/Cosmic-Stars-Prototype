@@ -14,17 +14,27 @@ if str(SRC) not in sys.path:
 
 from blackbody_1d_lut_baker import (
     DEFAULT_MAX_TEMPERATURE_K,
+    DEFAULT_PRIMARY_SEGMENT_END_K,
+    DEFAULT_PRIMARY_SEGMENT_FRACTION,
+    DEFAULT_SECONDARY_SEGMENT_END_K,
+    DEFAULT_SECONDARY_SEGMENT_FRACTION,
     DEFAULT_WIDTH,
     generate_lut,
     map_pixel_x_to_temperature,
+    map_temperature_to_uv_x,
     temperature_to_linear_srgb,
     write_exr,
 )
 
 
 class Blackbody1DLutBakerTests(unittest.TestCase):
-    def test_x_axis_maps_quadratically_to_temperature_range(self) -> None:
-        width = 5
+    def test_x_axis_maps_piecewise_to_temperature_range(self) -> None:
+        width = 41
+        primary_segment_x = int((width - 1) * DEFAULT_PRIMARY_SEGMENT_FRACTION)
+        secondary_segment_x = int((width - 1) * DEFAULT_SECONDARY_SEGMENT_FRACTION)
+        primary_segment_mid_x = primary_segment_x // 2
+        secondary_segment_mid_x = (primary_segment_x + secondary_segment_x) // 2
+        tertiary_segment_mid_x = (secondary_segment_x + (width - 1)) // 2
 
         self.assertEqual(
             map_pixel_x_to_temperature(0, width=width),
@@ -35,12 +45,50 @@ class Blackbody1DLutBakerTests(unittest.TestCase):
             DEFAULT_MAX_TEMPERATURE_K,
         )
         self.assertAlmostEqual(
-            map_pixel_x_to_temperature(1, width=width),
-            DEFAULT_MAX_TEMPERATURE_K * (0.25 ** 2),
+            map_pixel_x_to_temperature(primary_segment_x, width=width),
+            DEFAULT_PRIMARY_SEGMENT_END_K,
         )
         self.assertAlmostEqual(
-            map_pixel_x_to_temperature((width - 1) // 2, width=width),
-            10000.0,
+            map_pixel_x_to_temperature(secondary_segment_x, width=width),
+            DEFAULT_SECONDARY_SEGMENT_END_K,
+        )
+        self.assertAlmostEqual(
+            map_pixel_x_to_temperature(primary_segment_mid_x, width=width),
+            DEFAULT_PRIMARY_SEGMENT_END_K * 0.5,
+        )
+        self.assertAlmostEqual(
+            map_pixel_x_to_temperature(secondary_segment_mid_x, width=width),
+            DEFAULT_PRIMARY_SEGMENT_END_K + (
+                DEFAULT_SECONDARY_SEGMENT_END_K - DEFAULT_PRIMARY_SEGMENT_END_K
+            ) * 0.5,
+        )
+        self.assertAlmostEqual(
+            map_pixel_x_to_temperature(tertiary_segment_mid_x, width=width),
+            DEFAULT_SECONDARY_SEGMENT_END_K + (
+                DEFAULT_MAX_TEMPERATURE_K - DEFAULT_SECONDARY_SEGMENT_END_K
+            ) * 0.5,
+        )
+
+    def test_temperature_to_uv_uses_matching_piecewise_segments(self) -> None:
+        self.assertAlmostEqual(map_temperature_to_uv_x(0.0), 0.0)
+        self.assertAlmostEqual(
+            map_temperature_to_uv_x(DEFAULT_PRIMARY_SEGMENT_END_K),
+            DEFAULT_PRIMARY_SEGMENT_FRACTION,
+        )
+        self.assertAlmostEqual(
+            map_temperature_to_uv_x(DEFAULT_SECONDARY_SEGMENT_END_K),
+            DEFAULT_SECONDARY_SEGMENT_FRACTION,
+        )
+        self.assertAlmostEqual(map_temperature_to_uv_x(DEFAULT_MAX_TEMPERATURE_K), 1.0)
+        self.assertAlmostEqual(
+            map_temperature_to_uv_x(DEFAULT_PRIMARY_SEGMENT_END_K * 0.5),
+            DEFAULT_PRIMARY_SEGMENT_FRACTION * 0.5,
+        )
+        self.assertAlmostEqual(
+            map_temperature_to_uv_x(16000.0),
+            DEFAULT_PRIMARY_SEGMENT_FRACTION
+            + (DEFAULT_SECONDARY_SEGMENT_FRACTION - DEFAULT_PRIMARY_SEGMENT_FRACTION)
+            * 0.5,
         )
 
     def test_zero_kelvin_is_black(self) -> None:
