@@ -16,6 +16,8 @@ use rebound::{
     },
 };
 
+pub mod symplectic_bridge;
+
 pub const DEFAULT_WIDTH: usize = 4096;
 pub const DEFAULT_HEIGHT: usize = 4096;
 pub const DEFAULT_RS: f64 = 1.0;
