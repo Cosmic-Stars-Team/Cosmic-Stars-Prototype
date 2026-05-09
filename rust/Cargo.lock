@@ -1062,7 +1062,7 @@ dependencies = [
 [[package]]
 name = "rebound"
 version = "4.6.0"
-source = "git+https://github.com/Cosmic-Stars-Team/rebound-rs?branch=bind%2Fv4.6.0#91189780dacd86da034ddf9d647fff6476479faa"
+source = "git+https://github.com/Cosmic-Stars-Team/rebound-rs?branch=bind%2Fv4.6.0#63f745f458ebed1dfbb55b85fcf94de6d7797930"
 dependencies = [
  "rebound-bind",
  "thiserror",
@@ -1071,7 +1071,7 @@ dependencies = [
 [[package]]
 name = "rebound-bind"
 version = "4.6.0"
-source = "git+https://github.com/Cosmic-Stars-Team/rebound-rs?branch=bind%2Fv4.6.0#91189780dacd86da034ddf9d647fff6476479faa"
+source = "git+https://github.com/Cosmic-Stars-Team/rebound-rs?branch=bind%2Fv4.6.0#63f745f458ebed1dfbb55b85fcf94de6d7797930"
 dependencies = [
  "bindgen",
  "cc",
@@ -1351,6 +1351,14 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "symplectic-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rebound",
+]
 
 [[package]]
 name = "syn"

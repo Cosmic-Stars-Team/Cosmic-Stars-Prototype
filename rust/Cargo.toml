@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/far-field-lut-baker"]
+members = ["crates/far-field-lut-baker", "crates/symplectic-bridge"]
 
 [workspace.dependencies]
 anyhow = "1"
