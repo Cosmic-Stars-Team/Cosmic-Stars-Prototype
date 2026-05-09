@@ -295,6 +295,13 @@ impl SymplecticBridge {
     }
 
     pub fn step(&mut self, dt: f64) -> Result<()> {
+        for (index, subsystem) in self.subsystems.iter().enumerate() {
+            ensure!(
+                (subsystem.sim.t() - self.main_sim.t()).abs() < 1.0e-12,
+                "main_sim and subsystem {index} times are out of sync"
+            );
+        }
+
         self.apply_cross_kick(0.5 * dt)?;
 
         let target_time = self.main_sim.t() + dt;
@@ -520,6 +527,16 @@ mod tests {
         let sub_sim = make_sub_sim().unwrap();
         let subsystem = BridgeSubsystem::new(sub_sim, 1, 1, vec![0], 0.004).unwrap();
         let result = SymplecticBridge::new(main_sim, vec![subsystem], 0.01);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn step_rejects_out_of_sync_subsystem_time() {
+        let mut bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        bridge.subsystems[0].sim.integrate(1.0 / 1000.0).unwrap();
+
+        let result = bridge.step(1.0 / 365.0);
 
         assert!(result.is_err());
     }
