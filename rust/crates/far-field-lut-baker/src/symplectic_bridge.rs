@@ -2,8 +2,7 @@ use std::f64::consts::PI;
 
 use anyhow::{Context, Result, ensure};
 use rebound::{
-    bind,
-    create_particle,
+    bind, create_particle,
     simulation::{
         Integrator, Simulation, SimulationIntegratorWrite, SimulationParticlesRead,
         SimulationParticlesWrite, SimulationSettingsWrite, SimulationStateRead,
@@ -129,23 +128,6 @@ fn sim_body_states(sim: &Simulation) -> Result<Vec<BodyState>> {
     (0..sim.n()).map(|index| body_state(sim, index)).collect()
 }
 
-fn barycenter(sim: &Simulation) -> Result<Vec3d> {
-    ensure!(sim.n() > 0, "simulation has no particles");
-
-    let mut total_mass = 0.0;
-    let mut weighted = Vec3d(0.0, 0.0, 0.0);
-
-    for particle in sim.particles() {
-        let m = particle.mass().context("particle mass unavailable")?;
-        let p = particle.position().context("particle position unavailable")?;
-        total_mass += m;
-        weighted = v_add(weighted, v_scale(p, m));
-    }
-
-    ensure!(total_mass > 0.0, "total mass must be positive");
-    Ok(v_scale(weighted, 1.0 / total_mass))
-}
-
 fn point_mass_gravity(target_pos: Vec3d, source_pos: Vec3d, source_mass: f64) -> Vec3d {
     let r = v_sub(target_pos, source_pos);
     let inv_r3 = 1.0 / v_norm(r).powi(3);
@@ -205,6 +187,13 @@ impl SymplecticBridge {
                 subsystem.dt_inner <= dt_outer,
                 "dt_inner must be <= dt_outer for every subsystem"
             );
+            let substep_count = dt_outer / subsystem.dt_inner;
+            let nearest_substep_count = substep_count.round();
+            ensure!(
+                (substep_count - nearest_substep_count).abs()
+                    <= 1.0e-12 * substep_count.abs().max(1.0),
+                "dt_outer must be an integer multiple of every dt_inner"
+            );
             subsystem.sim.set_dt(subsystem.dt_inner)?;
         }
 
@@ -233,39 +222,44 @@ impl SymplecticBridge {
             .context("subsystem index out of bounds")?;
 
         let host_position = pos(&self.main_sim, subsystem.host_main_index)?;
-        let sub_barycenter = barycenter(&subsystem.sim)?;
-        let host_world_position = v_add(host_position, sub_barycenter);
-        let host_acceleration = acceleration_from_main(
+        let point_host_acceleration = acceleration_from_main(
             &self.main_sim,
             &subsystem.perturber_main_indices,
-            host_world_position,
+            host_position,
         )?;
 
         let mut total_mass = 0.0;
-        let mut weighted_acceleration = Vec3d(0.0, 0.0, 0.0);
-        let mut body_accelerations = Vec::with_capacity(subsystem.sim.n());
+        let mut direct_accelerations = Vec::with_capacity(subsystem.sim.n());
+        let mut masses = Vec::with_capacity(subsystem.sim.n());
 
         for body_index in 0..subsystem.sim.n() {
             let local_position = pos(&subsystem.sim, body_index)?;
             let body_mass = mass(&subsystem.sim, body_index)?;
             let world_position = v_add(host_position, local_position);
-            let body_acceleration = v_sub(
-                acceleration_from_main(
-                    &self.main_sim,
-                    &subsystem.perturber_main_indices,
-                    world_position,
-                )?,
-                host_acceleration,
-            );
+            let body_acceleration = acceleration_from_main(
+                &self.main_sim,
+                &subsystem.perturber_main_indices,
+                world_position,
+            )?;
 
             total_mass += body_mass;
-            weighted_acceleration =
-                v_add(weighted_acceleration, v_scale(body_acceleration, body_mass));
-            body_accelerations.push(body_acceleration);
+            masses.push(body_mass);
+            direct_accelerations.push(body_acceleration);
         }
 
         ensure!(total_mass > 0.0, "subsystem mass must be positive");
-        let reaction_acceleration = v_scale(weighted_acceleration, -1.0 / total_mass);
+        let weighted_acceleration = direct_accelerations
+            .iter()
+            .zip(masses.iter())
+            .fold(Vec3d(0.0, 0.0, 0.0), |sum, (acceleration, body_mass)| {
+                v_add(sum, v_scale(*acceleration, *body_mass))
+            });
+        let average_acceleration = v_scale(weighted_acceleration, 1.0 / total_mass);
+        let body_accelerations = direct_accelerations
+            .into_iter()
+            .map(|acceleration| v_sub(acceleration, average_acceleration))
+            .collect();
+        let reaction_acceleration = v_sub(average_acceleration, point_host_acceleration);
 
         Ok(BridgeKick {
             body_accelerations,
@@ -280,7 +274,11 @@ impl SymplecticBridge {
 
         for (subsystem, kick) in self.subsystems.iter_mut().zip(kicks.iter()) {
             for (body_index, acceleration) in kick.body_accelerations.iter().enumerate() {
-                add_velocity_kick(&mut subsystem.sim, body_index, v_scale(*acceleration, dt_half))?;
+                add_velocity_kick(
+                    &mut subsystem.sim,
+                    body_index,
+                    v_scale(*acceleration, dt_half),
+                )?;
             }
             add_velocity_kick(
                 &mut self.main_sim,
@@ -402,7 +400,7 @@ fn make_sub_sim() -> Result<Simulation> {
 
     let x_earth = -m_moon / (m_earth + m_moon) * separation;
     let x_moon = m_earth / (m_earth + m_moon) * separation;
-    let vy_earth = -omega * x_earth;
+    let vy_earth = omega * x_earth;
     let vy_moon = omega * x_moon;
 
     sim.add_particle(create_particle! {
@@ -432,6 +430,17 @@ fn make_sub_sim() -> Result<Simulation> {
 mod tests {
     use super::*;
 
+    fn weighted_average(accelerations: &[Vec3d], masses: &[f64]) -> Vec3d {
+        let total_mass = masses.iter().sum::<f64>();
+        let weighted = accelerations
+            .iter()
+            .zip(masses.iter())
+            .fold(Vec3d(0.0, 0.0, 0.0), |sum, (acceleration, mass)| {
+                v_add(sum, v_scale(*acceleration, *mass))
+            });
+        v_scale(weighted, 1.0 / total_mass)
+    }
+
     #[test]
     fn earth_moon_demo_keeps_relative_sun_emb_distance_near_one_au() {
         let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
@@ -447,5 +456,71 @@ mod tests {
             (origin_distance - relative_distance).abs() > 1.0e-12,
             "move_to_com should shift the origin away from the sun"
         );
+    }
+
+    #[test]
+    fn subsystem_kick_preserves_local_barycenter_and_applies_finite_size_reaction() {
+        let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        let subsystem = &bridge.subsystems[0];
+        let kick = bridge.subsystem_kick(0).unwrap();
+
+        let host_position = pos(&bridge.main_sim, subsystem.host_main_index).unwrap();
+        let point_acceleration = acceleration_from_main(
+            &bridge.main_sim,
+            &subsystem.perturber_main_indices,
+            host_position,
+        )
+        .unwrap();
+
+        let masses = (0..subsystem.sim.n())
+            .map(|index| mass(&subsystem.sim, index).unwrap())
+            .collect::<Vec<_>>();
+        let direct_accelerations = (0..subsystem.sim.n())
+            .map(|index| {
+                acceleration_from_main(
+                    &bridge.main_sim,
+                    &subsystem.perturber_main_indices,
+                    v_add(host_position, pos(&subsystem.sim, index).unwrap()),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let average_acceleration = weighted_average(&direct_accelerations, &masses);
+        let local_average = weighted_average(&kick.body_accelerations, &masses);
+        let expected_reaction = v_sub(average_acceleration, point_acceleration);
+
+        let local_average_norm = v_norm(local_average);
+        let reaction_error_norm = v_norm(v_sub(kick.reaction_acceleration, expected_reaction));
+
+        assert!(
+            local_average_norm < 1.0e-14,
+            "local average acceleration norm={local_average_norm:e}"
+        );
+        assert!(
+            reaction_error_norm < 1.0e-14,
+            "reaction error norm={reaction_error_norm:e}"
+        );
+    }
+
+    #[test]
+    fn earth_moon_demo_initializes_counter_orbiting_velocities() {
+        let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        let earth = body_state(&bridge.subsystems[0].sim, 0).unwrap();
+        let moon = body_state(&bridge.subsystems[0].sim, 1).unwrap();
+
+        assert!(earth.position.0 < 0.0);
+        assert!(moon.position.0 > 0.0);
+        assert!(earth.velocity.1 < 0.0);
+        assert!(moon.velocity.1 > 0.0);
+    }
+
+    #[test]
+    fn bridge_requires_substeps_to_evenly_divide_outer_step() {
+        let main_sim = make_main_sim().unwrap();
+        let sub_sim = make_sub_sim().unwrap();
+        let subsystem = BridgeSubsystem::new(sub_sim, 1, 1, vec![0], 0.004).unwrap();
+        let result = SymplecticBridge::new(main_sim, vec![subsystem], 0.01);
+
+        assert!(result.is_err());
     }
 }
