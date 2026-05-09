@@ -79,36 +79,20 @@ impl BridgeSubsystem {
     }
 }
 
-fn pos(sim: &Simulation, index: usize) -> Result<Vec3d> {
-    sim.get_particle(index)
-        .context("missing particle")?
-        .position()
-        .context("particle position unavailable")
-}
-
-fn vel(sim: &Simulation, index: usize) -> Result<Vec3d> {
-    sim.get_particle(index)
-        .context("missing particle")?
-        .velocity()
-        .context("particle velocity unavailable")
-}
-
-fn mass(sim: &Simulation, index: usize) -> Result<f64> {
-    sim.get_particle(index)
-        .context("missing particle")?
-        .mass()
-        .context("particle mass unavailable")
-}
-
 fn body_state(sim: &Simulation, index: usize) -> Result<BodyState> {
+    let particle = sim.get_particle(index).context("missing particle")?;
     Ok(BodyState {
-        position: pos(sim, index)?,
-        velocity: vel(sim, index)?,
-        mass: mass(sim, index)?,
+        position: particle
+            .position()
+            .context("particle position unavailable")?,
+        velocity: particle
+            .velocity()
+            .context("particle velocity unavailable")?,
+        mass: particle.mass().context("particle mass unavailable")?,
     })
 }
 
-fn sim_body_states(sim: &Simulation) -> Result<Vec<BodyState>> {
+fn body_states(sim: &Simulation) -> Result<Vec<BodyState>> {
     (0..sim.n()).map(|index| body_state(sim, index)).collect()
 }
 
@@ -144,9 +128,8 @@ fn acceleration_from_main(
 ) -> Result<Vec3d> {
     let mut acceleration = Vec3d(0.0, 0.0, 0.0);
     for &source_index in source_indices {
-        let source_pos = pos(main_sim, source_index)?;
-        let source_mass = mass(main_sim, source_index)?;
-        acceleration = acceleration + point_mass_gravity(target_pos, source_pos, source_mass);
+        let source = body_state(main_sim, source_index)?;
+        acceleration = acceleration + point_mass_gravity(target_pos, source.position, source.mass);
     }
     Ok(acceleration)
 }
@@ -203,9 +186,9 @@ impl SymplecticBridge {
             .get(subsystem_index)
             .context("subsystem index out of bounds")?;
 
-        let host_position = pos(&self.main_sim, subsystem.host_main_index)?;
+        let host = body_state(&self.main_sim, subsystem.host_main_index)?;
         let sub_barycenter = barycenter(&subsystem.sim)?;
-        let host_world_position = host_position + sub_barycenter;
+        let host_world_position = host.position + sub_barycenter;
         let host_acceleration = acceleration_from_main(
             &self.main_sim,
             &subsystem.perturber_main_indices,
@@ -217,17 +200,16 @@ impl SymplecticBridge {
         let mut body_accelerations = Vec::with_capacity(subsystem.sim.n());
 
         for body_index in 0..subsystem.sim.n() {
-            let local_position = pos(&subsystem.sim, body_index)?;
-            let body_mass = mass(&subsystem.sim, body_index)?;
-            let world_position = host_position + local_position;
+            let local_body = body_state(&subsystem.sim, body_index)?;
+            let world_position = host.position + local_body.position;
             let body_acceleration = acceleration_from_main(
                 &self.main_sim,
                 &subsystem.perturber_main_indices,
                 world_position,
             )? - host_acceleration;
 
-            total_mass += body_mass;
-            weighted_acceleration = weighted_acceleration + body_acceleration * body_mass;
+            total_mass += local_body.mass;
+            weighted_acceleration = weighted_acceleration + body_acceleration * local_body.mass;
             body_accelerations.push(body_acceleration);
         }
 
@@ -289,12 +271,12 @@ impl SymplecticBridge {
     }
 
     pub fn snapshot(&self) -> Result<BridgeSnapshot> {
-        let main_bodies = sim_body_states(&self.main_sim)?;
+        let main_bodies = body_states(&self.main_sim)?;
         let mut subsystems = Vec::with_capacity(self.subsystems.len());
 
         for subsystem in &self.subsystems {
             let host = body_state(&self.main_sim, subsystem.host_main_index)?;
-            let local_bodies = sim_body_states(&subsystem.sim)?;
+            let local_bodies = body_states(&subsystem.sim)?;
             let world_bodies = local_bodies
                 .iter()
                 .map(|body| BodyState {
