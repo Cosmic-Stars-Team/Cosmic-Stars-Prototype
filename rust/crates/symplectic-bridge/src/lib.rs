@@ -79,73 +79,37 @@ impl BridgeSubsystem {
     }
 }
 
-fn body_state(sim: &Simulation, index: usize) -> Result<BodyState> {
-    let particle = sim.get_particle(index).context("missing particle")?;
-    Ok(BodyState {
-        position: particle
-            .position()
-            .context("particle position unavailable")?,
-        velocity: particle
-            .velocity()
-            .context("particle velocity unavailable")?,
-        mass: particle.mass().context("particle mass unavailable")?,
-    })
-}
-
-fn body_states(sim: &Simulation) -> Result<Vec<BodyState>> {
-    (0..sim.n()).map(|index| body_state(sim, index)).collect()
-}
-
-fn barycenter(sim: &Simulation) -> Result<Vec3d> {
-    ensure!(sim.n() > 0, "simulation has no particles");
-
-    let mut total_mass = 0.0;
-    let mut weighted = Vec3d(0.0, 0.0, 0.0);
-
-    for particle in sim.particles() {
-        let m = particle.mass().context("particle mass unavailable")?;
-        let p = particle
-            .position()
-            .context("particle position unavailable")?;
-        total_mass += m;
-        weighted = weighted + p * m;
-    }
-
-    ensure!(total_mass > 0.0, "total mass must be positive");
-    Ok(weighted / total_mass)
-}
-
 fn point_mass_gravity(target_pos: Vec3d, source_pos: Vec3d, source_mass: f64) -> Vec3d {
     let r = target_pos - source_pos;
     let inv_r3 = 1.0 / r.length_squared().sqrt().powi(3);
     r * (-G * source_mass * inv_r3)
 }
 
-fn acceleration_from_main(
-    main_sim: &Simulation,
-    source_indices: &[usize],
-    target_pos: Vec3d,
-) -> Result<Vec3d> {
-    let mut acceleration = Vec3d(0.0, 0.0, 0.0);
-    for &source_index in source_indices {
-        let source = body_state(main_sim, source_index)?;
-        acceleration = acceleration + point_mass_gravity(target_pos, source.position, source.mass);
-    }
-    Ok(acceleration)
-}
-
-fn add_velocity_kick(sim: &mut Simulation, index: usize, dv: Vec3d) -> Result<()> {
-    let mut particle = sim.get_particle(index).context("missing particle")?;
-    let velocity = particle
-        .velocity()
-        .context("particle velocity unavailable")?;
-    particle
-        .set_velocity_vec3d(velocity + dv)
-        .context("failed to set particle velocity")?;
-    Ok(())
-}
-
 impl SymplecticBridge {
+    fn body_state(sim: &Simulation, index: usize) -> Result<BodyState> {
+        let particle = sim.get_particle(index).context("missing particle")?;
+        Ok(BodyState {
+            position: particle
+                .position()
+                .context("particle position unavailable")?,
+            velocity: particle
+                .velocity()
+                .context("particle velocity unavailable")?,
+            mass: particle.mass().context("particle mass unavailable")?,
+        })
+    }
+
+    fn add_velocity_kick(sim: &mut Simulation, index: usize, dv: Vec3d) -> Result<()> {
+        let mut particle = sim.get_particle(index).context("missing particle")?;
+        let velocity = particle
+            .velocity()
+            .context("particle velocity unavailable")?;
+        particle
+            .set_velocity_vec3d(velocity + dv)
+            .context("failed to set particle velocity")?;
+        Ok(())
+    }
+
     pub fn new(
         mut main_sim: Simulation,
         mut subsystems: Vec<BridgeSubsystem>,
@@ -173,8 +137,77 @@ impl SymplecticBridge {
         ensure!(sub_ratio > 0, "sub_ratio must be positive");
         let dt_inner = dt_outer / sub_ratio as f64;
 
-        let main_sim = make_main_sim()?;
-        let sub_sim = make_sub_sim()?;
+        let mut main_sim = Simulation::new();
+        main_sim.set_g(G).set_integrator(Integrator::Whfast);
+
+        simulation::set_integrator_config!(main_sim, {
+            safe_mode: 1,
+        })?;
+
+        let m_sun = 1.0;
+        let m_emb = 3.0e-6;
+        let a = 1.0;
+        let v = (G * (m_sun + m_emb) / a).sqrt();
+
+        main_sim
+            .add_particle(create_particle! {
+                mass: m_sun,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                vx: 0.0,
+                vy: 0.0,
+                vz: 0.0,
+            })?
+            .add_particle(create_particle! {
+                mass: m_emb,
+                x: a,
+                y: 0.0,
+                z: 0.0,
+                vx: 0.0,
+                vy: v,
+                vz: 0.0,
+            })?
+            .move_to_com();
+
+        let mut sub_sim = Simulation::new();
+        sub_sim.set_g(G).set_integrator(Integrator::Whfast);
+
+        simulation::set_integrator_config!(sub_sim, {
+            safe_mode: 1,
+        })?;
+
+        let m_earth = 3.0e-6 * 0.987;
+        let m_moon = 3.0e-6 * 0.013;
+        let separation: f64 = 0.00257;
+        let omega = (G * (m_earth + m_moon) / separation.powi(3)).sqrt();
+
+        let x_earth = -m_moon / (m_earth + m_moon) * separation;
+        let x_moon = m_earth / (m_earth + m_moon) * separation;
+        let vy_earth = -omega * x_earth;
+        let vy_moon = omega * x_moon;
+
+        sub_sim
+            .add_particle(create_particle! {
+                mass: m_earth,
+                x: x_earth,
+                y: 0.0,
+                z: 0.0,
+                vx: 0.0,
+                vy: vy_earth,
+                vz: 0.0,
+            })?
+            .add_particle(create_particle! {
+                mass: m_moon,
+                x: x_moon,
+                y: 0.0,
+                z: 0.0,
+                vx: 0.0,
+                vy: vy_moon,
+                vz: 0.0,
+            })?
+            .move_to_com();
+
         let subsystem = BridgeSubsystem::new(sub_sim, 1, 1, vec![0], dt_inner)?;
 
         Self::new(main_sim, vec![subsystem], dt_outer)
@@ -186,34 +219,53 @@ impl SymplecticBridge {
             .get(subsystem_index)
             .context("subsystem index out of bounds")?;
 
-        let host = body_state(&self.main_sim, subsystem.host_main_index)?;
-        let sub_barycenter = barycenter(&subsystem.sim)?;
+        let host = Self::body_state(&self.main_sim, subsystem.host_main_index)?;
+        let local_bodies = (0..subsystem.sim.n())
+            .map(|index| Self::body_state(&subsystem.sim, index))
+            .collect::<Result<Vec<_>>>()?;
+        let perturbers = subsystem
+            .perturber_main_indices
+            .iter()
+            .map(|&index| Self::body_state(&self.main_sim, index))
+            .collect::<Result<Vec<_>>>()?;
+
+        ensure!(!local_bodies.is_empty(), "simulation has no particles");
+        let total_mass = local_bodies.iter().map(|body| body.mass).sum::<f64>();
+        ensure!(total_mass > 0.0, "total mass must be positive");
+
+        let sub_barycenter = local_bodies
+            .iter()
+            .fold(Vec3d(0.0, 0.0, 0.0), |weighted, body| {
+                weighted + body.position * body.mass
+            })
+            / total_mass;
         let host_world_position = host.position + sub_barycenter;
-        let host_acceleration = acceleration_from_main(
-            &self.main_sim,
-            &subsystem.perturber_main_indices,
-            host_world_position,
-        )?;
+        let host_acceleration =
+            perturbers
+                .iter()
+                .fold(Vec3d(0.0, 0.0, 0.0), |acceleration, source| {
+                    acceleration
+                        + point_mass_gravity(host_world_position, source.position, source.mass)
+                });
 
-        let mut total_mass = 0.0;
         let mut weighted_acceleration = Vec3d(0.0, 0.0, 0.0);
-        let mut body_accelerations = Vec::with_capacity(subsystem.sim.n());
+        let mut body_accelerations = Vec::with_capacity(local_bodies.len());
 
-        for body_index in 0..subsystem.sim.n() {
-            let local_body = body_state(&subsystem.sim, body_index)?;
+        for local_body in &local_bodies {
             let world_position = host.position + local_body.position;
-            let body_acceleration = acceleration_from_main(
-                &self.main_sim,
-                &subsystem.perturber_main_indices,
-                world_position,
-            )? - host_acceleration;
+            let body_acceleration =
+                perturbers
+                    .iter()
+                    .fold(Vec3d(0.0, 0.0, 0.0), |acceleration, source| {
+                        acceleration
+                            + point_mass_gravity(world_position, source.position, source.mass)
+                    })
+                    - host_acceleration;
 
-            total_mass += local_body.mass;
             weighted_acceleration = weighted_acceleration + body_acceleration * local_body.mass;
             body_accelerations.push(body_acceleration);
         }
 
-        ensure!(total_mass > 0.0, "subsystem mass must be positive");
         let reaction_acceleration = weighted_acceleration / -total_mass;
 
         Ok(BridgeKick {
@@ -229,9 +281,9 @@ impl SymplecticBridge {
 
         for (subsystem, kick) in self.subsystems.iter_mut().zip(kicks.iter()) {
             for (body_index, acceleration) in kick.body_accelerations.iter().enumerate() {
-                add_velocity_kick(&mut subsystem.sim, body_index, *acceleration * dt_half)?;
+                Self::add_velocity_kick(&mut subsystem.sim, body_index, *acceleration * dt_half)?;
             }
-            add_velocity_kick(
+            Self::add_velocity_kick(
                 &mut self.main_sim,
                 subsystem.reaction_main_index,
                 kick.reaction_acceleration * dt_half,
@@ -271,12 +323,19 @@ impl SymplecticBridge {
     }
 
     pub fn snapshot(&self) -> Result<BridgeSnapshot> {
-        let main_bodies = body_states(&self.main_sim)?;
+        let main_bodies = (0..self.main_sim.n())
+            .map(|index| Self::body_state(&self.main_sim, index))
+            .collect::<Result<Vec<_>>>()?;
         let mut subsystems = Vec::with_capacity(self.subsystems.len());
 
         for subsystem in &self.subsystems {
-            let host = body_state(&self.main_sim, subsystem.host_main_index)?;
-            let local_bodies = body_states(&subsystem.sim)?;
+            let host = main_bodies
+                .get(subsystem.host_main_index)
+                .copied()
+                .context("missing particle")?;
+            let local_bodies = (0..subsystem.sim.n())
+                .map(|index| Self::body_state(&subsystem.sim, index))
+                .collect::<Result<Vec<_>>>()?;
             let world_bodies = local_bodies
                 .iter()
                 .map(|body| BodyState {
@@ -300,83 +359,6 @@ impl SymplecticBridge {
             subsystems,
         })
     }
-}
-
-fn make_main_sim() -> Result<Simulation> {
-    let mut sim = Simulation::new();
-    sim.set_g(G).set_integrator(Integrator::Whfast);
-
-    simulation::set_integrator_config!(sim, {
-        safe_mode: 1,
-    })?;
-
-    let m_sun = 1.0;
-    let m_emb = 3.0e-6;
-    let a = 1.0;
-    let v = (G * (m_sun + m_emb) / a).sqrt();
-
-    sim.add_particle(create_particle! {
-        mass: m_sun,
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-        vx: 0.0,
-        vy: 0.0,
-        vz: 0.0,
-    })?
-    .add_particle(create_particle! {
-        mass: m_emb,
-        x: a,
-        y: 0.0,
-        z: 0.0,
-        vx: 0.0,
-        vy: v,
-        vz: 0.0,
-    })?
-    .move_to_com();
-
-    Ok(sim)
-}
-
-fn make_sub_sim() -> Result<Simulation> {
-    let mut sim = Simulation::new();
-    sim.set_g(G).set_integrator(Integrator::Whfast);
-
-    simulation::set_integrator_config!(sim, {
-        safe_mode: 1,
-    })?;
-
-    let m_earth = 3.0e-6 * 0.987;
-    let m_moon = 3.0e-6 * 0.013;
-    let separation: f64 = 0.00257;
-    let omega = (G * (m_earth + m_moon) / separation.powi(3)).sqrt();
-
-    let x_earth = -m_moon / (m_earth + m_moon) * separation;
-    let x_moon = m_earth / (m_earth + m_moon) * separation;
-    let vy_earth = -omega * x_earth;
-    let vy_moon = omega * x_moon;
-
-    sim.add_particle(create_particle! {
-        mass: m_earth,
-        x: x_earth,
-        y: 0.0,
-        z: 0.0,
-        vx: 0.0,
-        vy: vy_earth,
-        vz: 0.0,
-    })?
-    .add_particle(create_particle! {
-        mass: m_moon,
-        x: x_moon,
-        y: 0.0,
-        z: 0.0,
-        vx: 0.0,
-        vy: vy_moon,
-        vz: 0.0,
-    })?
-    .move_to_com();
-
-    Ok(sim)
 }
 
 #[cfg(test)]
