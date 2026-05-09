@@ -12,11 +12,8 @@ use rebound::{
     simulation::{
         Integrator, Simulation, SimulationCallbacksWrite, SimulationIntegratorWrite,
         SimulationParticlesRead, SimulationParticlesWrite, SimulationSettingsWrite,
-        SimulationWrite,
     },
 };
-
-pub mod symplectic_bridge;
 
 pub const DEFAULT_WIDTH: usize = 4096;
 pub const DEFAULT_HEIGHT: usize = 4096;
@@ -346,15 +343,21 @@ fn make_ray_simulation(
         vy: velocity.1,
     })?;
 
-    sim.set_additional_forces(move |mut sim_ref| unsafe {
-        let raw = sim_ref.raw_mut();
-        let particle = &mut *(*raw).particles.add(0);
-        let radius_sq = particle.x * particle.x + particle.y * particle.y + particle.z * particle.z;
+    sim.set_additional_forces(move |sim_ref| {
+        let Some(mut particle) = sim_ref.get_particle(0) else {
+            return;
+        };
+        let Some(position) = particle.position() else {
+            return;
+        };
+        let Some(acceleration) = particle.acceleration() else {
+            return;
+        };
+
+        let radius_sq = position.length_squared();
         let radius = radius_sq.sqrt();
         let scale = -1.5 * rs * l2 / (radius_sq * radius_sq * radius);
-        particle.ax += scale * particle.x;
-        particle.ay += scale * particle.y;
-        particle.az += scale * particle.z;
+        let _ = particle.set_acceleration_vec3d(acceleration + scale * position);
     });
 
     Ok(sim)
