@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use rebound::{
     create_particle,
     simulation::{
-        Integrator, Simulation, SimulationCallbacksWrite, SimulationIntegratorWrite,
+        self, Integrator, Simulation, SimulationCallbacksWrite, SimulationIntegratorWrite,
         SimulationParticlesRead, SimulationParticlesWrite, SimulationSettingsWrite,
     },
 };
@@ -330,7 +330,10 @@ fn make_ray_simulation(
 
     let mut sim = Simulation::new();
     sim.set_integrator(Integrator::Ias15);
-    sim.ri_ias15().set_epsilon(ias15_epsilon).set_min_dt(0.0);
+    simulation::set_integrator_config!(sim, {
+        epsilon: ias15_epsilon,
+        min_dt: 0.0,
+    })?;
     sim.set_dt(f64::max(
         1.0e-3 * rs.max(1.0),
         ias15_initial_dt_scale * (position.0 - boundary_radius),

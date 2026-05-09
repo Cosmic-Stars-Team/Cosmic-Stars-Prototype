@@ -4,7 +4,7 @@ use anyhow::{Context, Result, ensure};
 use rebound::{
     create_particle,
     simulation::{
-        Integrator, Simulation, SimulationIntegratorWrite, SimulationParticlesRead,
+        self, Integrator, Simulation, SimulationIntegratorWrite, SimulationParticlesRead,
         SimulationParticlesWrite, SimulationSettingsWrite, SimulationStateRead,
         SimulationTransferWrite,
     },
@@ -322,10 +322,11 @@ impl SymplecticBridge {
 
 fn make_main_sim() -> Result<Simulation> {
     let mut sim = Simulation::new();
-    sim.set_g(G)
-        .set_integrator(Integrator::Whfast)
-        .ri_whfast()
-        .set_safe_mode(1);
+    sim.set_g(G).set_integrator(Integrator::Whfast);
+
+    simulation::set_integrator_config!(sim, {
+        safe_mode: 1,
+    })?;
 
     let m_sun = 1.0;
     let m_emb = 3.0e-6;
@@ -357,10 +358,11 @@ fn make_main_sim() -> Result<Simulation> {
 
 fn make_sub_sim() -> Result<Simulation> {
     let mut sim = Simulation::new();
-    sim.set_g(G)
-        .set_integrator(Integrator::Whfast)
-        .ri_whfast()
-        .set_safe_mode(1);
+    sim.set_g(G).set_integrator(Integrator::Whfast);
+
+    simulation::set_integrator_config!(sim, {
+        safe_mode: 1,
+    })?;
 
     let m_earth = 3.0e-6 * 0.987;
     let m_moon = 3.0e-6 * 0.013;
