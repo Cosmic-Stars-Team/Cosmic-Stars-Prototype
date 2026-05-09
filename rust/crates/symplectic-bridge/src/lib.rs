@@ -123,6 +123,13 @@ impl SymplecticBridge {
                 subsystem.dt_inner <= dt_outer,
                 "dt_inner must be <= dt_outer for every subsystem"
             );
+            let substep_count = dt_outer / subsystem.dt_inner;
+            let nearest_substep_count = substep_count.round();
+            ensure!(
+                (substep_count - nearest_substep_count).abs()
+                    <= 1.0e-12 * substep_count.abs().max(1.0),
+                "dt_outer must be an integer multiple of every dt_inner"
+            );
             subsystem.sim.set_dt(subsystem.dt_inner)?;
         }
 
@@ -184,7 +191,7 @@ impl SymplecticBridge {
 
         let x_earth = -m_moon / (m_earth + m_moon) * separation;
         let x_moon = m_earth / (m_earth + m_moon) * separation;
-        let vy_earth = -omega * x_earth;
+        let vy_earth = omega * x_earth;
         let vy_moon = omega * x_moon;
 
         sub_sim
@@ -233,23 +240,14 @@ impl SymplecticBridge {
         let total_mass = local_bodies.iter().map(|body| body.mass).sum::<f64>();
         ensure!(total_mass > 0.0, "total mass must be positive");
 
-        let sub_barycenter = local_bodies
-            .iter()
-            .fold(Vec3d(0.0, 0.0, 0.0), |weighted, body| {
-                weighted + body.position * body.mass
-            })
-            / total_mass;
-        let host_world_position = host.position + sub_barycenter;
-        let host_acceleration =
+        let point_host_acceleration =
             perturbers
                 .iter()
                 .fold(Vec3d(0.0, 0.0, 0.0), |acceleration, source| {
-                    acceleration
-                        + point_mass_gravity(host_world_position, source.position, source.mass)
+                    acceleration + point_mass_gravity(host.position, source.position, source.mass)
                 });
 
-        let mut weighted_acceleration = Vec3d(0.0, 0.0, 0.0);
-        let mut body_accelerations = Vec::with_capacity(local_bodies.len());
+        let mut direct_accelerations = Vec::with_capacity(local_bodies.len());
 
         for local_body in &local_bodies {
             let world_position = host.position + local_body.position;
@@ -259,14 +257,23 @@ impl SymplecticBridge {
                     .fold(Vec3d(0.0, 0.0, 0.0), |acceleration, source| {
                         acceleration
                             + point_mass_gravity(world_position, source.position, source.mass)
-                    })
-                    - host_acceleration;
+                    });
 
-            weighted_acceleration = weighted_acceleration + body_acceleration * local_body.mass;
-            body_accelerations.push(body_acceleration);
+            direct_accelerations.push(body_acceleration);
         }
 
-        let reaction_acceleration = weighted_acceleration / -total_mass;
+        let weighted_acceleration = direct_accelerations
+            .iter()
+            .zip(local_bodies.iter())
+            .fold(Vec3d(0.0, 0.0, 0.0), |weighted, (acceleration, body)| {
+                weighted + *acceleration * body.mass
+            });
+        let average_acceleration = weighted_acceleration / total_mass;
+        let body_accelerations = direct_accelerations
+            .into_iter()
+            .map(|acceleration| acceleration - average_acceleration)
+            .collect();
+        let reaction_acceleration = average_acceleration - point_host_acceleration;
 
         Ok(BridgeKick {
             body_accelerations,
@@ -298,6 +305,13 @@ impl SymplecticBridge {
     }
 
     pub fn step(&mut self, dt: f64) -> Result<()> {
+        for (index, subsystem) in self.subsystems.iter().enumerate() {
+            ensure!(
+                (subsystem.sim.t() - self.main_sim.t()).abs() < 1.0e-12,
+                "main_sim and subsystem {index} times are out of sync"
+            );
+        }
+
         self.apply_cross_kick(0.5 * dt)?;
 
         let target_time = self.main_sim.t() + dt;
@@ -365,6 +379,25 @@ impl SymplecticBridge {
 mod tests {
     use super::*;
 
+    fn weighted_average(accelerations: &[Vec3d], masses: &[f64]) -> Vec3d {
+        let total_mass = masses.iter().sum::<f64>();
+        let weighted = accelerations
+            .iter()
+            .zip(masses.iter())
+            .fold(Vec3d(0.0, 0.0, 0.0), |sum, (acceleration, mass)| {
+                sum + *acceleration * *mass
+            });
+        weighted / total_mass
+    }
+
+    fn acceleration_from_bodies(target_pos: Vec3d, source_bodies: &[BodyState]) -> Vec3d {
+        source_bodies
+            .iter()
+            .fold(Vec3d(0.0, 0.0, 0.0), |acceleration, source| {
+                acceleration + point_mass_gravity(target_pos, source.position, source.mass)
+            })
+    }
+
     #[test]
     fn earth_moon_demo_keeps_relative_sun_emb_distance_near_one_au() {
         let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
@@ -380,5 +413,83 @@ mod tests {
             (origin_distance - relative_distance).abs() > 1.0e-12,
             "move_to_com should shift the origin away from the sun"
         );
+    }
+
+    #[test]
+    fn subsystem_kick_preserves_local_barycenter_and_applies_finite_size_reaction() {
+        let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        let subsystem = &bridge.subsystems[0];
+        let kick = bridge.subsystem_kick(0).unwrap();
+
+        let host =
+            SymplecticBridge::body_state(&bridge.main_sim, subsystem.host_main_index).unwrap();
+        let perturbers = subsystem
+            .perturber_main_indices
+            .iter()
+            .map(|&index| SymplecticBridge::body_state(&bridge.main_sim, index).unwrap())
+            .collect::<Vec<_>>();
+        let local_bodies = (0..subsystem.sim.n())
+            .map(|index| SymplecticBridge::body_state(&subsystem.sim, index).unwrap())
+            .collect::<Vec<_>>();
+        let masses = local_bodies
+            .iter()
+            .map(|body| body.mass)
+            .collect::<Vec<_>>();
+        let direct_accelerations = local_bodies
+            .iter()
+            .map(|body| acceleration_from_bodies(host.position + body.position, &perturbers))
+            .collect::<Vec<_>>();
+
+        let point_acceleration = acceleration_from_bodies(host.position, &perturbers);
+        let average_acceleration = weighted_average(&direct_accelerations, &masses);
+        let local_average = weighted_average(&kick.body_accelerations, &masses);
+        let expected_reaction = average_acceleration - point_acceleration;
+
+        let local_average_norm = local_average.length_squared().sqrt();
+        let reaction_error_norm = (kick.reaction_acceleration - expected_reaction)
+            .length_squared()
+            .sqrt();
+
+        assert!(
+            local_average_norm < 1.0e-14,
+            "local average acceleration norm={local_average_norm:e}"
+        );
+        assert!(
+            reaction_error_norm < 1.0e-14,
+            "reaction error norm={reaction_error_norm:e}"
+        );
+    }
+
+    #[test]
+    fn earth_moon_demo_initializes_counter_orbiting_velocities() {
+        let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        let earth = SymplecticBridge::body_state(&bridge.subsystems[0].sim, 0).unwrap();
+        let moon = SymplecticBridge::body_state(&bridge.subsystems[0].sim, 1).unwrap();
+
+        assert!(earth.position.0 < 0.0);
+        assert!(moon.position.0 > 0.0);
+        assert!(earth.velocity.1 < 0.0);
+        assert!(moon.velocity.1 > 0.0);
+    }
+
+    #[test]
+    fn bridge_requires_substeps_to_evenly_divide_outer_step() {
+        let bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        let main_sim = bridge.main_sim;
+        let sub_sim = bridge.subsystems.into_iter().next().unwrap().sim;
+        let subsystem = BridgeSubsystem::new(sub_sim, 1, 1, vec![0], 0.004).unwrap();
+        let result = SymplecticBridge::new(main_sim, vec![subsystem], 0.01);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn step_rejects_out_of_sync_subsystem_time() {
+        let mut bridge = SymplecticBridge::new_earth_moon(1.0 / 365.0, 50).unwrap();
+        bridge.subsystems[0].sim.integrate(1.0 / 1000.0).unwrap();
+
+        let result = bridge.step(1.0 / 365.0);
+
+        assert!(result.is_err());
     }
 }
